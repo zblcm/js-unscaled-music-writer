@@ -1,0 +1,156 @@
+
+<!DOCTYPE html>
+<style type="text/css">
+<!--
+@font-face {
+    font-family: './font/simyou';
+    src: url('simyou.ttf');
+}
+@font-face {
+    font-family: './font/courier';
+    src: url('courier.ttf');
+}
+-->
+</style>
+<html style="margin:0px; width:100%; height:100%;">
+<body style="margin:0px; width:100%; height:100%;">
+<div style="height:100%;">
+	<canvas id="Canvas_0" width="800" height="600" style="position:absolute; top:0;left:0; border:0px solid #d3d3d3;"></canvas>
+	<canvas id="Canvas_1" width="800" height="600" style="position:absolute; top:0;left:0; border:0px solid #d3d3d3;"></canvas>
+</div>
+
+<script>
+function wait(value) {
+    return new Promise(function (resolve, reject) {
+		setTimeout(function() {
+			resolve();
+		}, value * 1000);
+	});
+}
+function init_canvas(canvas) {
+	canvas.onmousedown = EventHandler.handleMouseDown;
+	document.onmousemove = EventHandler.handleMouseMove;
+	document.onmouseup = EventHandler.handleMouseUp;
+	document.onwheel = EventHandler.handleMouseWheel
+	canvas.width = screen.width;
+	canvas.height = screen.height;
+	
+	canvas.oncontextmenu = function (e) {
+		e.preventDefault();
+	};
+}
+function run_script(scriptPath) {
+	return new Promise(function(resolve, reject) {
+		let ele = document.createElement("script");
+		ele.charset = "utf-8";
+		ele.setAttribute("src", scriptPath);
+		document.head.appendChild(ele);
+		
+		ele.onload = function() {
+			console.log(scriptPath);
+			resolve(true);
+		};
+	});
+}
+function do_promises_parallel(do_promise, array_arg) {
+	return new Promise(function(resolve, reject) {
+		let i;
+		let array_res = [];
+		let count = 0;
+		for (i in array_arg) {
+			array_res.push(undefined);
+			do_promise(array_arg[i]).then(function(i) {
+				return function(result) {
+					array_res[i] = result;
+					count = count + 1;
+					if (count == array_arg.length)
+						resolve(array_res);
+				}
+			}(i));
+		}
+	}); 
+}
+function do_promises_sequential(do_promise, array_arg) {
+	return new Promise(function(resolve, reject) {
+		let i;
+		let array_res = [];
+		let func_gen = function(i) {
+			return function(result) {
+				array_res[i] = result;
+				if (i == array_arg.length)
+					resolve(array_res);
+				else
+					do_promise(array_arg[i]).then(func_gen(i + 1));
+			}
+		};
+		do_promise(array_arg[0]).then(func_gen(0));
+	}); 
+}
+
+async function start() {
+	// Load basic scripts.
+	await do_promises_parallel(run_script, [
+		"./script/basic/general/color.js",
+		"./script/basic/general/geometry.js",
+		"./script/basic/general/general.js",
+		"./script/basic/general/ticker.js",
+        "./script/basic/general/image.js",
+        "./script/basic/general/fraction.js",
+	]);
+    await do_promises_parallel(run_script, [
+        "./script/basic/GUI/ctx.js",
+        "./script/basic/GUI/doublebuff.js",
+        "./script/basic/GUI/event.js",
+        "./script/basic/GUI/text.js",
+        "./script/basic/GUI/panel.js",
+        "./script/basic/GUI/button.js",
+    ]);
+    await do_promises_parallel(run_script, [
+        "./script/editor/parent_panel.js",
+        "./script/editor/menu/menubar.js",
+        "./script/editor/instrument/instrument.js",
+        "./script/editor/scrollhandler.js",
+        "./script/editor/editor.js",
+    ]);
+	
+	window.onresize = DoubleBuff.resize_to_client;
+	
+	/*
+	// Load icons.
+	await do_promises(ImageHandler.load, [
+		"./image/icon/deck_deck.png",
+		"./image/icon/deck_grave.png",
+		"./image/icon/deck_exhaust.png",
+		"./image/icon/deck_prototype.png",
+	]);
+	await ImageHandler.load("./image/character/leader.png");
+	*/
+	
+	// setup screen.
+	let canvas_0 = document.getElementById("Canvas_0");
+	let canvas_1 = document.getElementById("Canvas_1");
+	init_canvas(canvas_0);
+	init_canvas(canvas_1);
+	
+	DoubleBuff.init(canvas_0, canvas_1);
+    window.onresize = DoubleBuff.resize_to_client;
+    DoubleBuff.resize_to_client();
+	
+	EventHandler.init();
+    MenuHandler.init();
+    ParentPanel.init();
+	setInterval(update, 1000 / 60);
+}
+
+function update() {
+	EventHandler.on_draw(DoubleBuff.ctxw);
+	// Ticker.tick();
+	// DoubleBuff.ctx.fillRect(0, 0, 100, 100, "#00ffff");
+	DoubleBuff.flip();
+}
+
+start();
+</script>
+
+</body>
+</html>
