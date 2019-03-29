@@ -2,8 +2,7 @@ var General = {};
 
 General.gcd = function(a, b) {
     if (a < b) return General.gcd(b, a);
-    if (b == 0) return 0;
-    if (b == 1) return 1;
+    if (b == 0) return a;
     return General.gcd(b, a % b);
 };
 

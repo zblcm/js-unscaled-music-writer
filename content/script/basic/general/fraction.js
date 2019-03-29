@@ -1,6 +1,8 @@
 var Fraction = function(u, d, is_negative) {
 	this.u = u;
 	this.d = d;
+	if (this.d === undefined) this.d = 1;
+    // console.log("fraction", this.u, this.d);
 	this.is_negative = (is_negative == true);
 	
 	this.fix = function() {
@@ -13,7 +15,7 @@ var Fraction = function(u, d, is_negative) {
 			this.is_negative = !this.is_negative;
 		}
 		if (this.d == 0 || this.u == 0) return;
-        let c = General.gcd(u, d);
+        let c = General.gcd(this.u, this.d);
 		this.u = this.u / c;
 		this.d = this.d / c;
 	};
