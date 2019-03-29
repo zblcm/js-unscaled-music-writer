@@ -26,8 +26,8 @@ Editor.init = function() {
     Editor.selecting = false;
     Editor.y_dividers = [];
     Editor.focused_bar = null;
-    EventHandler.drawing_bar = null;
-    EventHandler.drawing_base = null;
+    Editor.drawing_bar = null;
+    Editor.drawing_base = null;
     Editor.referenced_bar = null;
 
     Editor.create_bar();
@@ -215,7 +215,7 @@ Editor.create_bar = function() {
             sx = Editor.unit_to_draw_x(bar.index);
             ex = Editor.unit_to_draw_x(bar.index + 1);
 
-            // draw frame.
+            // draw x frame.
             sy = Editor.unit_to_draw_y(0);
             ey = Editor.unit_to_draw_y(Editor.total_y);
             if (y > Editor.content_panel.size.y) y = Editor.content_panel.size.y;
@@ -224,22 +224,14 @@ Editor.create_bar = function() {
             ctxw.draw_line(new Point2(ex, sy), new Point2(ex, ey), ColorHandler.COLOR_THEME_7, 1);
 
 
-            // draw vertical units.
+            // draw x division.
             let i_max = Math.round(Editor.x_edit_division.inv().to_float());
             for (let i = 1; i < i_max; i++) {
                 x = Editor.unit_to_draw_x(bar.index + (i / i_max));
                 ctxw.draw_line(new Point2(x, sy), new Point2(x, ey), ColorHandler.COLOR_THEME_4, 0.5);
             }
 
-            // draw green base.
-            let base_value = General.log(2, bar.base.to_float());
-
-            for (let t = base_value; t < Editor.total_y; t ++) {
-                // draw base line.
-                y = Editor.unit_to_draw_y(t);
-                ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE, 1);
-            }
-            // draw unit line.
+            // draw y reference base.
             if (bar.selected || bar.inside(EventHandler.mouse_position)) {
                 let referenced_bar = Editor.referenced_bar || bar;
                 let referenced_base = General.log(2, referenced_bar.base.to_float());
@@ -250,6 +242,13 @@ Editor.create_bar = function() {
                         ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE_DARK, 0.5);
                     }
                 }
+            }
+
+            // draw y real base.
+            let base_value = General.log(2, bar.base.to_float());
+            for (let t = base_value; t < Editor.total_y; t ++) {
+                y = Editor.unit_to_draw_y(t);
+                ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE, 1);
             }
         }
     };
@@ -298,7 +297,7 @@ Editor.create_bar = function() {
 Editor.content_mouse_event = function(type, key, special) {
     let inside = Editor.content_panel.inside(EventHandler.mouse_position);
     Editor.focused_bar = Editor.bars[Math.floor(Editor.abs_to_unit_x(EventHandler.mouse_position.x))] || null;
-    if (Editor.focused_bar) Editor.focused_y_line = Editor.focused_bar.find_nearest_y_line(EventHandler.mouse_position);
+    if (Editor.focused_bar) Editor.focused_y_line = (Editor.referenced_bar || Editor.focused_bar).find_nearest_y_line(EventHandler.mouse_position);
 
     // record mouse press.
     if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
@@ -355,14 +354,14 @@ Editor.content_mouse_event = function(type, key, special) {
 
         // handle select start.
         if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
-            EventHandler.drawing_bar = Editor.focused_bar;
-            EventHandler.drawing_base = Editor.focused_y_line;
+            Editor.drawing_bar = Editor.focused_bar;
+            Editor.drawing_base = Editor.focused_y_line;
         }
         if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
-            if (EventHandler.drawing_bar && EventHandler.drawing_base) {
-                EventHandler.drawing_bar.set_base(EventHandler.drawing_base);
-                EventHandler.drawing_bar = null;
-                EventHandler.drawing_base = null;
+            if (Editor.drawing_bar && Editor.drawing_base) {
+                Editor.drawing_bar.set_base(Editor.drawing_base);
+                Editor.drawing_bar = null;
+                Editor.drawing_base = null;
             }
         }
     }
@@ -377,8 +376,24 @@ Editor.content_mouse_event = function(type, key, special) {
 };
 
 Editor.content_draw = function(ctxw) {
+    let sx, ex, sy, ey, x, y;
     // draw bars.
     for (let i in Editor.bars) Editor.bars[i].draw_content(ctxw);
+
+    // draw y line reference.
+    if (Editor.drawing_bar && Editor.drawing_base) {
+        sx = Editor.unit_to_draw_x(Editor.drawing_bar.index);
+        ex = Editor.unit_to_draw_x(Editor.drawing_bar.index + 1);
+        y = Editor.unit_to_draw_y(General.log(2, Editor.drawing_base.to_float()));
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE, 1);
+    }
+    else
+        if (Editor.focused_bar && Editor.focused_y_line) {
+            sx = Editor.unit_to_draw_x(Editor.focused_bar.index);
+            ex = Editor.unit_to_draw_x(Editor.focused_bar.index + 1);
+            y = Editor.unit_to_draw_y(General.log(2, Editor.focused_y_line.to_float()));
+            ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE_DARK, 1);
+        }
 
     // draw notes.
     for (let i in Editor.bars)
