@@ -25,6 +25,10 @@ Editor.init = function() {
     Editor.press_ed_pos = null;
     Editor.selecting = false;
     Editor.y_dividers = [];
+    Editor.focused_bar = null;
+    EventHandler.drawing_bar = null;
+    EventHandler.drawing_base = null;
+    Editor.referenced_bar = null;
 
     Editor.create_bar();
     Editor.create_bar();
@@ -183,7 +187,7 @@ Editor.create_bar = function() {
 
     bar.notes = [];
     bar.selected = false;
-    bar.base = new Fraction(1, 1);  // 默认base. 1/2 < base <= 1
+    bar.base = new Fraction(1);  // 默认base. 1/2 < base <= 1
 
     bar.update_index = function() { bar.index = Editor.bars.indexOf(bar); };
 
@@ -212,12 +216,13 @@ Editor.create_bar = function() {
             ex = Editor.unit_to_draw_x(bar.index + 1);
 
             // draw frame.
-            let fill_color = null;
-            if (bar.selected) fill_color = null;
             sy = Editor.unit_to_draw_y(0);
             ey = Editor.unit_to_draw_y(Editor.total_y);
             if (y > Editor.content_panel.size.y) y = Editor.content_panel.size.y;
+            if (bar.selected)
+                ctxw.draw_rect(new Point2(sx, sy), new Point2(ex - sx, ey - sy), ColorHandler.COLOR_THEME_1);
             ctxw.draw_line(new Point2(ex, sy), new Point2(ex, ey), ColorHandler.COLOR_THEME_7, 1);
+
 
             // draw vertical units.
             let i_max = Math.round(Editor.x_edit_division.inv().to_float());
@@ -230,21 +235,56 @@ Editor.create_bar = function() {
             let base_value = General.log(2, bar.base.to_float());
 
             for (let t = base_value; t < Editor.total_y; t ++) {
-                // draw green line.
+                // draw base line.
                 y = Editor.unit_to_draw_y(t);
-                ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE_DARK, 0.5);
-
-                // draw yellow line.
-                for (let d = 1; d < Editor.y_edit_division; d ++) {
-                    let t_add = General.log(2, (d + Editor.y_edit_division) / Editor.y_edit_division);
-                    let y = Editor.unit_to_draw_y(t + t_add);
-                    ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE_DARK, 0.5);
+                ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE, 1);
+            }
+            // draw unit line.
+            if (bar.selected || bar.inside(EventHandler.mouse_position)) {
+                let referenced_bar = Editor.referenced_bar || bar;
+                let referenced_base = General.log(2, referenced_bar.base.to_float());
+                for (let t = referenced_base; t < Editor.total_y; t ++) {
+                    for (let d = 0; d < Editor.y_edit_division; d++) {
+                        let t_add = General.log(2, (d + Editor.y_edit_division) / Editor.y_edit_division);
+                        let y = Editor.unit_to_draw_y(t + t_add);
+                        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE_DARK, 0.5);
+                    }
                 }
             }
         }
+    };
 
-        // draw notes.
-        for (let i in bar.notes) notes[i].draw_content(ctxw);
+    bar.find_nearest_y_line = function(abs_pos) {
+        let base = bar.base;
+        let base_value = General.log(2, bar.base.to_float());
+        let unit_y = Editor.abs_to_unit_y(abs_pos.y);
+
+        while (base_value + 1 < unit_y) {
+            base = base.mul(new Fraction(2));
+            base_value ++;
+        }
+
+        let last_delta;
+        let last_fraction = null;
+        for (let t = 0; t <= Editor.y_edit_division; t ++) {
+            let fraction = base.mul(new Fraction(t + Editor.y_edit_division, Editor.y_edit_division));
+            let delta = Math.abs(General.log(2, fraction.to_float()) - unit_y);
+            if ((!last_fraction) || (delta < last_delta)) {
+                last_delta = delta;
+                last_fraction = fraction;
+            }
+        }
+
+        return last_fraction;
+    };
+
+    bar.set_base = function(f) {
+        let two = new Fraction(2);
+        let max = new Fraction(1);
+        let min = new Fraction(1, 2);
+        while (f.mt(max)) f = f.div(two);
+        while (f.leq(min)) f = f.mul(two);
+        bar.base = f;
     };
 
     // put bar into the bars array.
@@ -257,6 +297,8 @@ Editor.create_bar = function() {
 
 Editor.content_mouse_event = function(type, key, special) {
     let inside = Editor.content_panel.inside(EventHandler.mouse_position);
+    Editor.focused_bar = Editor.bars[Math.floor(Editor.abs_to_unit_x(EventHandler.mouse_position.x))] || null;
+    if (Editor.focused_bar) Editor.focused_y_line = Editor.focused_bar.find_nearest_y_line(EventHandler.mouse_position);
 
     // record mouse press.
     if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
@@ -267,34 +309,70 @@ Editor.content_mouse_event = function(type, key, special) {
         if (Editor.press_st_pos)
             Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
     }
-    if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
-        if (Editor.press_st_pos) {
-            Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
-            Editor.press_st_pos = null;
-        }
-    }
 
     // handle selection
     if (Editor.current_tool == MenuHandler.TOOL_SELECT) {
         // cancel selection.
+        if ((inside) && (key == EventHandler.MOUSE_RIGHT_BUTTON) && (type == EventHandler.MOUSE_UP))
+            Editor.clear_selected();
+
+        // handle select start.
+        if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
+            // TODO:: judge select single note first.
+            Editor.clear_selected();
+            Editor.selecting = true;
+            Editor.update_selected();
+        }
+        if (type == EventHandler.MOUSE_MOVE) {
+            if (Editor.selecting)
+                Editor.update_selected();
+        }
+        if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+            if (Editor.selecting) {
+                Editor.update_selected();
+                Editor.selecting = false;
+            }
+        }
+    }
+
+    // handle base set
+    if (Editor.current_tool == MenuHandler.TOOL_BASE) {
+        // change reference.
         if ((inside) && (key == EventHandler.MOUSE_RIGHT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
-            for (let i in Editor.bars) {
-                let bar = Editor.bars[i];
-                bar.selected = false;
-                // TODO:: unselect notes.
+            if (Editor.referenced_bar) {
+                Editor.referenced_bar.selected = false;
+                if (Editor.referenced_bar == Editor.focused_bar) Editor.referenced_bar = null;
+                else {
+                    Editor.referenced_bar = Editor.focused_bar;
+                    Editor.referenced_bar.selected = true;
+                }
+            }
+            else {
+                Editor.referenced_bar = Editor.focused_bar;
+                Editor.referenced_bar.selected = true;
             }
         }
 
         // handle select start.
         if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
-            // TODO:: judge select single note first.
-            Editor.selecting = true;
+            EventHandler.drawing_bar = Editor.focused_bar;
+            EventHandler.drawing_base = Editor.focused_y_line;
         }
         if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
-            if (Editor.selecting)
-                Editor.selecting = false;
+            if (EventHandler.drawing_bar && EventHandler.drawing_base) {
+                EventHandler.drawing_bar.set_base(EventHandler.drawing_base);
+                EventHandler.drawing_bar = null;
+                EventHandler.drawing_base = null;
+            }
         }
+    }
 
+    // record mouse release.
+    if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+        if (Editor.press_st_pos) {
+            Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
+            Editor.press_st_pos = null;
+        }
     }
 };
 
@@ -317,5 +395,26 @@ Editor.content_draw = function(ctxw) {
         if (x1 > x2) { t = x1; x1 = x2; x2 = t; }
         if (y1 > y2) { t = y1; y1 = y2; y2 = t; }
         ctxw.draw_rect(new Point2(x1, y1), new Point2(x2 - x1, y2 - y1), null, ColorHandler.COLOR_THEME_7, 1);
+    }
+};
+
+Editor.update_selected = function() {
+    let t;
+    let x1 = Editor.press_st_pos.x;
+    let x2 = Editor.press_ed_pos.x;
+    let y1 = Editor.press_st_pos.y;
+    let y2 = Editor.press_ed_pos.y;
+    if (x1 > x2) { t = x1; x1 = x2; x2 = t; }
+    if (y1 > y2) { t = y1; y1 = y2; y2 = t; }
+
+    // update bar.
+    for (let i = 0; i < Editor.total_x; i ++)
+        Editor.bars[i].selected = (i >= x1 - 1) && (i <= x2);
+};
+Editor.clear_selected = function() {
+    for (let i in Editor.bars) {
+        let bar = Editor.bars[i];
+        bar.selected = false;
+        // TODO:: unselect notes.
     }
 };

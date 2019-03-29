@@ -178,6 +178,8 @@ MenuHandler.select_tool = function(tool_key) {
     for (let i in MenuHandler.button_tools) {
         button = MenuHandler.button_tools[i];
         if (tool_key == i) {
+            Editor.clear_selected();
+            Editor.referenced_bar = null;
             Editor.current_tool = tool_key;
             button.change_state(ButtonHandler.BUTTON_ACTIVE);
         }
