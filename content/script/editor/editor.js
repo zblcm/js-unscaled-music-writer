@@ -19,7 +19,6 @@ Editor.init = function() {
     Editor.y_unit_size = 320;
     Editor.total_x = 0;
     Editor.total_y = 10;
-    Editor.normal_y = 5;
     Editor.bars = [];
 
     Editor.press_st_pos = null;
@@ -55,12 +54,19 @@ Editor.create_content_panel = function() {
 
     panel.draw_content = Editor.content_draw;
 
-    Editor.abs_to_unit_x = function(x) { return ((x - panel.position.x) / Editor.x_unit_size) + Editor.current_x; };
-    Editor.abs_to_unit_y = function(y) { return ((y - panel.position.y) / Editor.y_unit_size) + Editor.current_y; };
-    Editor.unit_to_abs_x = function(x) { return ((x - Editor.current_x) * Editor.x_unit_size) + panel.position.x; };
-    Editor.unit_to_abs_y = function(y) { return ((y - Editor.current_y) * Editor.y_unit_size) + panel.position.y; };
-    Editor.abs_to_unit = function(p) { return new Point2(Editor.abs_to_unit_x(p.x), Editor.abs_to_unit_y(p.y))};
-    Editor.unit_to_abs = function(p) { return new Point2(Editor.unit_to_abs_x(p.x), Editor.unit_to_abs_y(p.y))};
+    Editor.abs_to_unit_x = function(x) { return Editor.draw_to_unit_x(x - panel.position.x); };
+    Editor.abs_to_unit_y = function(y) { return Editor.draw_to_unit_y(y - panel.position.y); };
+    Editor.unit_to_abs_x = function(x) { return Editor.unit_to_draw_x(x) + panel.position.x; };
+    Editor.unit_to_abs_y = function(y) { return Editor.unit_to_draw_y(y) + panel.position.y; };
+    Editor.abs_to_unit = function(p) { return Editor.draw_to_unit(p.sub(panel.position)); };
+    Editor.unit_to_abs = function(p) { return Editor.unit_to_draw(p).add(panel.position); };
+
+    Editor.draw_to_unit_x = function(x) { return (x / Editor.x_unit_size) + Editor.current_x; };
+    Editor.draw_to_unit_y = function(y) { return ((panel.size.y - y) / Editor.y_unit_size) + Editor.current_y;};
+    Editor.unit_to_draw_x = function(x) { return (x - Editor.current_x) * Editor.x_unit_size; };
+    Editor.unit_to_draw_y = function(y) { return panel.size.y - ((y - Editor.current_y) * Editor.y_unit_size); };
+    Editor.draw_to_unit = function(p) { return new Point2(Editor.draw_to_unit_x(p.x), Editor.draw_to_unit_y(p.y)); };
+    Editor.unit_to_draw = function(p) { return new Point2(Editor.unit_to_draw_x(p.x), Editor.unit_to_draw_y(p.y)); };
 
     return panel;
 };
@@ -140,7 +146,7 @@ Editor.create_panel = function() {
         Editor.current_x = ratio_plus * Editor.total_x;
     };
     Editor.y_scroll_bar.on_scroll = function(ratio) {
-        let ratio_plus = ratio / (1 + (Editor.content_panel.size.y / (Editor.imagine_size.y - Editor.content_panel.size.y)));
+        let ratio_plus = (1 - ratio) / (1 + (Editor.content_panel.size.y / (Editor.imagine_size.y - Editor.content_panel.size.y)));
         Editor.current_y = ratio_plus * Editor.total_y;
     };
 
@@ -177,32 +183,23 @@ Editor.create_bar = function() {
 
     bar.notes = [];
     bar.selected = false;
+    bar.base = new Fraction(1, 1);  // 默认base. 1/2 < base <= 1
 
-    bar.update_index = function() {
-        bar.index = Editor.bars.indexOf(bar);
-    };
-    bar.base = new Fraction(1, 1);  // 默认base.
+    bar.update_index = function() { bar.index = Editor.bars.indexOf(bar); };
 
     bar.should_draw = function() {
-        let bar_sx = Editor.unit_to_abs_x(bar.index);
-        let bar_ex = Editor.unit_to_abs_x(bar.index + 1);
-        let panel_sx = Editor.content_panel.position.x;
-        let panel_ex = Editor.content_panel.position.x + Editor.content_panel.size.x;
+        let bar_sx = Editor.unit_to_draw_x(bar.index);
+        let bar_ex = Editor.unit_to_draw_x(bar.index + 1);
+        let panel_sx = 0;
+        let panel_ex = Editor.content_panel.size.x;
         return bar_ex > panel_sx && bar_sx < panel_ex;
     };
 
     bar.inside = function(p) {
-        let sx = Editor.content_panel.position.x;
-        let ex = Editor.content_panel.position.x + Editor.content_panel.size.x;
-        let sy = Editor.content_panel.position.y;
-        let ey = Editor.content_panel.position.y + Editor.content_panel.size.y;
+        let sx = Editor.unit_to_abs_x(bar.index);
+        let ex = Editor.unit_to_abs_x(bar.index + 1);
 
-        let st = Editor.unit_to_abs_x(bar.index);
-        let et = Editor.unit_to_abs_x(bar.index + 1);
-        if (sx < st) sx = st;
-        if (ex > et) ex = et;
-
-        return (p.x > sx) && (p.x < ex) && (p.y > sy) && (p.y < ey);
+        return Editor.content_panel.inside(p) && (p.x > sx) && (p.x < ex);
     };
 
     bar.draw_content = function(ctxw) {
@@ -211,48 +208,37 @@ Editor.create_bar = function() {
         let sx, ex, sy, ey;
 
         if (bar.should_draw()) {
-            sx = (bar.index - Editor.current_x) * Editor.x_unit_size;
-            ex = (bar.index + 1 - Editor.current_x) * Editor.x_unit_size;
+            sx = Editor.unit_to_draw_x(bar.index);
+            ex = Editor.unit_to_draw_x(bar.index + 1);
 
             // draw frame.
             let fill_color = null;
             if (bar.selected) fill_color = null;
-            y = (Editor.total_y - Editor.current_y) * Editor.y_unit_size;
+            sy = Editor.unit_to_draw_y(0);
+            ey = Editor.unit_to_draw_y(Editor.total_y);
             if (y > Editor.content_panel.size.y) y = Editor.content_panel.size.y;
-            ctxw.draw_line(new Point2(ex, 0), new Point2(ex, y), ColorHandler.COLOR_THEME_7, 1);
+            ctxw.draw_line(new Point2(ex, sy), new Point2(ex, ey), ColorHandler.COLOR_THEME_7, 1);
 
             // draw vertical units.
             let i_max = Math.round(Editor.x_edit_division.inv().to_float());
             for (let i = 1; i < i_max; i++) {
-                x = (bar.index + (i / i_max) - Editor.current_x) * Editor.x_unit_size;
-                ctxw.draw_line(new Point2(x, 0), new Point2(x, y), ColorHandler.COLOR_THEME_4, 0.5);
+                x = Editor.unit_to_draw_x(bar.index + (i / i_max));
+                ctxw.draw_line(new Point2(x, sy), new Point2(x, ey), ColorHandler.COLOR_THEME_4, 0.5);
             }
 
             // draw green base.
-            let base_value = General.log(2, bar.base.to_float()) + Editor.normal_y;
-            y = (base_value - Editor.current_y) * Editor.y_unit_size;
-            ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE, 1);
+            let base_value = General.log(2, bar.base.to_float());
 
-            for (let t = base_value; t < Editor.total_y; t++) {
-                y = (t - Editor.current_y) * Editor.y_unit_size;
+            for (let t = base_value; t < Editor.total_y; t ++) {
+                // draw green line.
+                y = Editor.unit_to_draw_y(t);
                 ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE_DARK, 0.5);
-            }
-            for (let t = base_value; t > 0; t--) {
-                y = (t - Editor.current_y) * Editor.y_unit_size;
-                ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_BASE_DARK, 0.5);
-            }
 
-            // draw yellow lines.
-            if (bar.inside(EventHandler.mouse_position) || bar.selected) {
-                let t = base_value;
-                while (t < Editor.total_y) t ++;
-                while (t > 0) {
-                    for (let d = 1; d < Editor.y_edit_division; d ++) {
-                        let y_subtract = General.log(2, (d + Editor.y_edit_division) / Editor.y_edit_division);
-                        let y = (t - Editor.current_y - y_subtract) * Editor.y_unit_size;
-                        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE_DARK, 0.5);
-                    }
-                    t --;
+                // draw yellow line.
+                for (let d = 1; d < Editor.y_edit_division; d ++) {
+                    let t_add = General.log(2, (d + Editor.y_edit_division) / Editor.y_edit_division);
+                    let y = Editor.unit_to_draw_y(t + t_add);
+                    ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE_DARK, 0.5);
                 }
             }
         }
@@ -324,10 +310,10 @@ Editor.content_draw = function(ctxw) {
     // draw selection.
     if (Editor.selecting) {
         let t;
-        let x1 = (Editor.press_st_pos.x - Editor.current_x) * Editor.x_unit_size;
-        let x2 = (Editor.press_ed_pos.x - Editor.current_x) * Editor.x_unit_size;
-        let y1 = (Editor.press_st_pos.y - Editor.current_y) * Editor.y_unit_size;
-        let y2 = (Editor.press_ed_pos.y - Editor.current_y) * Editor.y_unit_size;
+        let x1 = Editor.unit_to_draw_x(Editor.press_st_pos.x);
+        let x2 = Editor.unit_to_draw_x(Editor.press_ed_pos.x);
+        let y1 = Editor.unit_to_draw_y(Editor.press_st_pos.y);
+        let y2 = Editor.unit_to_draw_y(Editor.press_ed_pos.y);
         if (x1 > x2) { t = x1; x1 = x2; x2 = t; }
         if (y1 > y2) { t = y1; y1 = y2; y2 = t; }
         ctxw.draw_rect(new Point2(x1, y1), new Point2(x2 - x1, y2 - y1), null, ColorHandler.COLOR_THEME_7, 1);
