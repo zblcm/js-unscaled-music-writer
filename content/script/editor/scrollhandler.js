@@ -34,9 +34,9 @@ ScrollHandler.new_scroll = function(horizontal) {
             if (percent < 0) percent = 0;
             if (percent > 1) percent = 1;
             scrollbar.drager.set_percent(percent);
-            scrollbar.on_scroll(percent);
+            if (scrollbar.on_scroll) scrollbar.on_scroll(percent);
         }
-        else scrollbar.on_scroll(0);
+        else if (scrollbar.on_scroll) scrollbar.on_scroll(0);
 
     };
 /*

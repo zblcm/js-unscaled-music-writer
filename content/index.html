@@ -86,8 +86,10 @@ function do_promises_sequential(do_promise, array_arg) {
 		do_promise(array_arg[0]).then(func_gen(0));
 	}); 
 }
-
+let ELECTRON;
 async function start() {
+    ELECTRON = ("undefined" != typeof require);
+
 	// Load basic scripts.
 	await do_promises_parallel(run_script, [
 		"./script/basic/general/color.js",
@@ -138,7 +140,12 @@ async function start() {
 	
 	EventHandler.init();
     MenuHandler.init();
+    InstrumentHandler.init();
     ParentPanel.init();
+
+    for (let i = 0; i < 25; i++)
+    	InstrumentHandler.new_instrument(InstrumentHandler.SINE_SINTRUMENT);
+
 	setInterval(update, 1000 / 60);
 }
 
@@ -148,6 +155,12 @@ function update() {
 	// DoubleBuff.ctx.fillRect(0, 0, 100, 100, "#00ffff");
 	DoubleBuff.flip();
 }
+
+/*
+	D:
+	cd D:\study\mygame\electron_projects\music_writer
+	npm run start
+*/
 
 start();
 </script>
