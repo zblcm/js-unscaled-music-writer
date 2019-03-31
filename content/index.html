@@ -152,9 +152,9 @@ async function start() {
 }
 
 function update() {
+    AudioHandler.update();
 	EventHandler.on_draw(DoubleBuff.ctxw);
 	DoubleBuff.flip();
-
 }
 
 /*

@@ -39,7 +39,9 @@ Editor.init = function() {
     Editor.imagine_size = new Point2(100, 100);
 
     Editor.play_x = 0;
+    Editor.play_start_x = 0;
     Editor.selected_x = 0;
+    Editor.unit_time = 1.0;
 };
 Editor.create_content_panel = function() {
     let panel = {};

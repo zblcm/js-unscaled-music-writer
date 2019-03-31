@@ -7,6 +7,20 @@ AudioHandler.init = function() {
 
 AudioHandler.set_playing = function(playing) {
     AudioHandler.playing = playing;
+    if (playing) {
+        Editor.play_start_x = Editor.play_x;
+        AudioHandler.play_start_time = Ticker.time();
+    }
+};
+
+AudioHandler.update = function() {
+    if (AudioHandler.playing) {
+        Editor.play_x = ((Ticker.time() - AudioHandler.play_start_time) / Editor.unit_time) + Editor.play_start_x;
+        if (Editor.play_x > Editor.total_x) {
+            AudioHandler.set_playing(false);
+            Editor.play_x = Editor.total_x;
+        }
+    }
 };
 
 AudioHandler.load = function(src, callback) {
