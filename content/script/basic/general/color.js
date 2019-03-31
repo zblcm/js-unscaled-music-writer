@@ -168,6 +168,6 @@ ColorHandler.COLOR_THEME_7 = new Color(0.8, 0.8, 1.0, 1.0);
 
 ColorHandler.COLOR_BASE = new Color(0.2, 1.0, 0.2, 1);
 ColorHandler.COLOR_BASE_DARK = new Color(0.2, 0.6, 0.2, 1);
-ColorHandler.COLOR_EDIT_BASE = new Color(1.0, 1.0, 0.2, 1);
-ColorHandler.COLOR_EDIT_BASE_DARK = new Color(0.6, 0.6, 0.2, 1);
+ColorHandler.COLOR_EDIT = new Color(1.0, 1.0, 0.2, 1);
+ColorHandler.COLOR_EDIT_DARK = new Color(0.6, 0.6, 0.2, 1);
 ColorHandler.COLOR_TIME = new Color(1.0, 0.0, 0.0, 1);

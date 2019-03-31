@@ -67,7 +67,7 @@ MenuHandler.create_panel = function() {
 
     // adjusters.
     adjuster = MenuHandler.append_adjuster();
-    adjuster.text_color = ColorHandler.COLOR_EDIT_BASE;
+    adjuster.text_color = ColorHandler.COLOR_EDIT;
     adjuster.on_adjust = function(adjuster) {
         return function() {
             Editor.y_edit_division = adjuster.cur_num;
@@ -207,8 +207,8 @@ MenuHandler.select_tool = function(tool_key) {
     if (Editor.current_tool == tool_key)
         return;
     if (Editor.current_tool == MenuHandler.TOOL_DRAW)
-        for (let i in InstrumentHandler.instruments)
-            InstrumentHandler.instruments[i].set_select(false);
+        InstrumentHandler.select_instrument(null);
+
 
     Editor.current_tool = null;
     let button;

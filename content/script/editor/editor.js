@@ -296,10 +296,10 @@ Editor.create_bar = function() {
         }
     };
 
-    bar.find_nearest_y_line = function(abs_pos) {
+    bar.find_nearest_y_line = function(abs_y) {
         let base = bar.base;
         let base_value = General.log(2, bar.base.to_float());
-        let unit_y = Editor.abs_to_unit_y(abs_pos.y);
+        let unit_y = Editor.abs_to_unit_y(abs_y);
 
         while (base_value + 1 < unit_y) {
             base = base.mul(new Fraction(2));
@@ -337,10 +337,55 @@ Editor.create_bar = function() {
     return bar;
 };
 
+Editor.create_note = function(instrument, x, y, duration) {
+    let note = {};
+    note.instrument = instrument;
+    note.x = null;
+    note.y = y;
+    note.duration = duration;
+
+    note.set_x = function(x) {
+        note.x = x;
+        if (note.bar) General.array_remove(note.bar.notes, note);
+        note.bar = Editor.bars[Math.floor(note.x.to_float())];
+        note.bar.notes.push(note);
+    };
+
+    note.should_draw = function() {
+        let sx = Editor.unit_to_draw_x(note.x.to_float());
+        let ex = Editor.unit_to_draw_x(note.x.to_float() + note.duration.to_float());
+        let y = Editor.unit_to_draw_y(General.log(2, note.y.to_float()));
+
+        return (ex > 0) && (sx < Editor.content_panel.size.x) && (y > 0) && (y < Editor.content_panel.size.y);
+    };
+
+    note.draw_content = function(ctxw) {
+        let sx = Editor.unit_to_draw_x(note.x.to_float());
+        let ex = Editor.unit_to_draw_x(note.x.to_float() + note.duration.to_float());
+        let y = Editor.unit_to_draw_y(General.log(2, note.y.to_float()));
+
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), note.instrument.color, 3);
+    };
+
+    note.set_x(x);
+
+    return note;
+};
+
+Editor.find_nearest_x_line = function(abs_x) {
+    let unit_x = Editor.abs_to_unit_x(abs_x);
+    if (unit_x < 0) unit_x = 0;
+    if (unit_x > Editor.total_x) unit_x = Editor.total_x;
+    let n = Math.round(unit_x * Math.round(Editor.x_edit_division.inv().to_float()));
+    return Editor.x_edit_division.mul(new Fraction(n));
+};
+
 Editor.content_mouse_event = function(type, key, special) {
     let inside = Editor.content_panel.inside(EventHandler.mouse_position);
     Editor.focused_bar = Editor.bars[Math.floor(Editor.abs_to_unit_x(EventHandler.mouse_position.x))] || null;
-    if (Editor.focused_bar) Editor.focused_y_line = (Editor.referenced_bar || Editor.focused_bar).find_nearest_y_line(EventHandler.mouse_position);
+    if (Editor.focused_bar) Editor.focused_y_line = (Editor.referenced_bar || Editor.focused_bar).find_nearest_y_line(EventHandler.mouse_position.y);
+    if (inside) Editor.focused_x_line = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
+    else Editor.focused_x_line = null;
 
     // record mouse press.
     if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
@@ -350,6 +395,48 @@ Editor.content_mouse_event = function(type, key, special) {
     if (type == EventHandler.MOUSE_MOVE) {
         if (Editor.press_st_pos)
             Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
+    }
+
+    // handle draw
+    if (Editor.current_tool == MenuHandler.TOOL_DRAW) {
+        // change reference.
+        if ((inside) && (key == EventHandler.MOUSE_RIGHT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+            if (Editor.referenced_bar) {
+                Editor.referenced_bar.selected = false;
+                if (Editor.referenced_bar == Editor.focused_bar) Editor.referenced_bar = null;
+                else {
+                    Editor.referenced_bar = Editor.focused_bar;
+                    Editor.referenced_bar.selected = true;
+                }
+            }
+            else {
+                Editor.referenced_bar = Editor.focused_bar;
+                Editor.referenced_bar.selected = true;
+            }
+        }
+
+        // handle select start.
+        if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN) && (InstrumentHandler.active_instrument)) {
+            Editor.drawing_sx = Editor.focused_x_line;
+            Editor.drawing_ex = Editor.focused_x_line;
+            Editor.drawing_y = Editor.focused_y_line;
+        }
+        if (type == EventHandler.MOUSE_MOVE) {
+            if (Editor.drawing_sx && Editor.drawing_y) {
+                Editor.drawing_ex = Editor.focused_x_line;
+            }
+        }
+        if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+            if (Editor.drawing_sx && Editor.drawing_y) {
+                Editor.drawing_ex = Editor.focused_x_line;
+
+                Editor.create_note(InstrumentHandler.active_instrument, Editor.drawing_sx, Editor.drawing_y, Editor.drawing_ex.sub(Editor.drawing_sx));
+
+                Editor.drawing_sx = null;
+                Editor.drawing_ex = null;
+                Editor.drawing_y = null;
+            }
+        }
     }
 
     // handle selection
@@ -428,20 +515,36 @@ Editor.content_draw = function(ctxw) {
         sx = Editor.unit_to_draw_x(Editor.drawing_bar.index);
         ex = Editor.unit_to_draw_x(Editor.drawing_bar.index + 1);
         y = Editor.unit_to_draw_y(General.log(2, Editor.drawing_base.to_float()));
-        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE, 1);
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT, 1);
     }
     else
         if (Editor.focused_bar && Editor.focused_y_line) {
             sx = Editor.unit_to_draw_x(Editor.focused_bar.index);
             ex = Editor.unit_to_draw_x(Editor.focused_bar.index + 1);
             y = Editor.unit_to_draw_y(General.log(2, Editor.focused_y_line.to_float()));
-            ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_BASE_DARK, 1);
+            ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), ColorHandler.COLOR_EDIT_DARK, 1);
         }
+
+    // draw x line reference
+    if (Editor.focused_x_line) {
+        sy = 0;
+        ey = Editor.unit_to_draw_y(Editor.abs_to_unit_y(Editor.content_panel.position.y + Editor.content_panel.size.y))
+        x = Editor.unit_to_draw_x(Editor.focused_x_line.to_float());
+        ctxw.draw_line(new Point2(x, sy), new Point2(x, ey), ColorHandler.COLOR_EDIT_DARK, 1);
+    }
+
+    //  draw drawing note
+    if (Editor.drawing_sx && Editor.drawing_ex && Editor.drawing_y) {
+        sx = Editor.unit_to_draw_x(Editor.drawing_sx.to_float());
+        ex = Editor.unit_to_draw_x(Editor.drawing_ex.to_float());
+        y = Editor.unit_to_draw_y(General.log(2, Editor.drawing_y.to_float()));
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), InstrumentHandler.active_instrument.color, 3);
+    }
 
     // draw notes.
     for (let i in Editor.bars)
         for (let j in Editor.bars[i].notes)
-            Editor.bars[i].notes.draw_content(ctxw);
+            Editor.bars[i].notes[j].draw_content(ctxw);
 
     // draw selection.
     if (Editor.selecting) {
