@@ -167,7 +167,7 @@ MenuHandler.append_adjuster = function() {
     };
     adjuster.add_mouse_event(function(key, type, special) {
         let inside = adjuster.inside(EventHandler.mouse_position);
-        if (key == EventHandler.MOUSE_MIDDLE_BUTTON && type == EventHandler.MOUSE_MOVE && inside) {
+        if (key == EventHandler.MOUSE_BUTTON_MIDDLE && type == EventHandler.EVENT_MOUSE_MOVE && inside) {
             let new_num = adjuster.change_number(adjuster.cur_num, special < 0);
             let old_num = adjuster.cur_num;
             adjuster.cur_num = new_num;

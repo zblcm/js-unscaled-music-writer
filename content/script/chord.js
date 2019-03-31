@@ -103,15 +103,15 @@ ChordHandler.Chord = function(start, length) {
 			}
 		}
 		panel.add_mouse_event(function(type, key, special) {
-			if ((type == EventHandler.MOUSE_DOWN) && (panel.inside(EventHandler.mouse_position))) {
-				if (key == EventHandler.MOUSE_LEFT_BUTTON) {
+			if ((type == EventHandler.EVENT_MOUSE_DOWN) && (panel.inside(EventHandler.mouse_position))) {
+				if (key == EventHandler.MOUSE_BUTTON_LEFT) {
 					if (ChordHandler.get_selected_chords().indexOf(chord) < 0) {
 						ChordHandler.clear_selected_chords();
 						
 					}
 					panel.update_color();
 				}
-				if (key == EventHandler.MOUSE_RIGHT_BUTTON) {
+				if (key == EventHandler.MOUSE_BUTTON_RIGHT) {
 					EventHandler.pop_panel = ChordHandler.chord_editor_panel;
 					ChordHandler.editing_chord = chord;
 				}
@@ -310,9 +310,9 @@ ChordHandler.construct_chord_editor = function() {
 	
 	panel.mouse_event = function(type, key, special) {
 		let index;
-		if (type == EventHandler.MOUSE_DOWN) {
+		if (type == EventHandler.EVENT_MOUSE_DOWN) {
 			if (panel.inside(EventHandler.mouse_position)) {
-				if (key == EventHandler.MOUSE_LEFT_BUTTON) {
+				if (key == EventHandler.MOUSE_BUTTON_LEFT) {
 					index = panel.get_positional_index(EventHandler.mouse_position);
 					ChordHandler.editing_chord.in_chord_pitches[index] = !ChordHandler.editing_chord.in_chord_pitches[index];
 					ChordHandler.editing_chord.calculate_base_and_type();

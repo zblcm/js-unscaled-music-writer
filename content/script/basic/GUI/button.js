@@ -48,12 +48,12 @@ ButtonHandler.buttonlize = function(button) {
 	button.mouse_event = function(type, key, special) {
 		if (button.state == ButtonHandler.BUTTON_ACTIVE) return;
 		let inside = button.inside(EventHandler.mouse_position);
-		if (key == EventHandler.MOUSE_LEFT_BUTTON) {
-			if (type == EventHandler.MOUSE_DOWN) {
+		if (key == EventHandler.MOUSE_BUTTON_LEFT) {
+			if (type == EventHandler.EVENT_MOUSE_DOWN) {
 				if (inside)
 					button.change_state(ButtonHandler.BUTTON_PRESS);
 			}
-			if (type == EventHandler.MOUSE_UP) {
+			if (type == EventHandler.EVENT_MOUSE_UP) {
 				if (button.state == ButtonHandler.BUTTON_PRESS) {
 					if (inside)
 						button.on_click();
@@ -67,7 +67,7 @@ ButtonHandler.buttonlize = function(button) {
                 	button.change_state(ButtonHandler.BUTTON_STATIC);
 			}
 		}
-        if (type == EventHandler.MOUSE_MOVE) {
+        if (type == EventHandler.EVENT_MOUSE_MOVE) {
             if (button.state == ButtonHandler.BUTTON_PRESS) {
             	if (!button.draging) {
                     button.drag_offset = EventHandler.mouse_position.sub(button.position);

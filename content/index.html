@@ -138,6 +138,8 @@ async function start() {
 	DoubleBuff.init(canvas_0, canvas_1);
     window.onresize = DoubleBuff.resize_to_client;
     DoubleBuff.resize_to_client();
+    document.onkeydown = EventHandler.handleKeyDown;
+    document.onkeyup = EventHandler.handleKeyUp;
 
     Ticker.init();
 	EventHandler.init();

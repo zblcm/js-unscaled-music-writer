@@ -8,8 +8,10 @@ Editor.X_UNIT_SIZE_MAX = 1280;
 Editor.Y_UNIT_SIZE_MIN = 40;
 Editor.Y_UNIT_SIZE_MAX = 1280;
 Editor.UNIT_SCALE_LENGTH = 200;
+Editor.NOTE_SELECT_RADIUS = 5;
 
 Editor.ZERO_FREQUENCY = 20.0;
+Editor.MIN_VOLUME = 0.01;
 
 Editor.init = function() {
     Editor.notes = [];
@@ -107,12 +109,14 @@ Editor.create_x_ruler_panel = function () {
 
     panel.add_mouse_event(function(type, key, special) {
         let inside = panel.inside(EventHandler.mouse_position);
-        if ((type == EventHandler.MOUSE_DOWN) && (key == EventHandler.MOUSE_LEFT_BUTTON) && inside)
+        if ((type == EventHandler.EVENT_MOUSE_DOWN) && (key == EventHandler.MOUSE_BUTTON_LEFT) && inside)
             panel.pressing = true;
-        if ((type == EventHandler.MOUSE_UP) && (key == EventHandler.MOUSE_LEFT_BUTTON))
+        if ((type == EventHandler.EVENT_MOUSE_UP) && (key == EventHandler.MOUSE_BUTTON_LEFT))
             panel.pressing = false;
         if (panel.pressing)
             Editor.selected_x = Editor.abs_to_unit_x(EventHandler.mouse_position.x);
+        if ((type == EventHandler.EVENT_KEY_DOWN) && (key == EventHandler.KEY_SPACE))
+            MenuHandler.button_times[MenuHandler.TIME_PLAY].on_click();
     });
 
     return panel;
@@ -339,12 +343,14 @@ Editor.create_bar = function() {
     return bar;
 };
 
-Editor.create_note = function(instrument, x, y, duration) {
+Editor.create_note = function(instrument, x, y, duration, s_volume, e_volume) {
     let note = {};
     note.instrument = instrument;
     note.x = null;
     note.y = y;
     note.duration = duration;
+    note.s_volume = s_volume;
+    note.e_volume = e_volume;
 
     note.set_x = function(x) {
         note.x = x;
@@ -383,11 +389,12 @@ Editor.create_note = function(instrument, x, y, duration) {
 
     note.play = function(duration_override) {
         let frequency = note.y.to_float() * Editor.ZERO_FREQUENCY;
-        let amplitude = 0.25;
         let duration;
         if (duration_override) duration = duration_override;
         else duration = note.duration.to_float() * Editor.unit_time;
-        note.instrument.play(frequency, amplitude, duration);
+        let s_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.s_volume);
+        let e_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.e_volume);
+        note.instrument.play(frequency, s_volume, duration, e_volume);
     };
 
     note.set_x(x);
@@ -411,11 +418,11 @@ Editor.content_mouse_event = function(type, key, special) {
     else Editor.focused_x_line = null;
 
     // record mouse press.
-    if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
+    if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
         Editor.press_st_pos = Editor.abs_to_unit(EventHandler.mouse_position);
         Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
     }
-    if (type == EventHandler.MOUSE_MOVE) {
+    if (type == EventHandler.EVENT_MOUSE_MOVE) {
         if (Editor.press_st_pos)
             Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
     }
@@ -423,7 +430,7 @@ Editor.content_mouse_event = function(type, key, special) {
     // handle draw
     if (Editor.current_tool == MenuHandler.TOOL_DRAW) {
         // change reference.
-        if ((inside) && (key == EventHandler.MOUSE_RIGHT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_RIGHT) && (type == EventHandler.EVENT_MOUSE_UP)) {
             if (Editor.referenced_bar) {
                 Editor.referenced_bar.selected = false;
                 if (Editor.referenced_bar == Editor.focused_bar) Editor.referenced_bar = null;
@@ -439,21 +446,21 @@ Editor.content_mouse_event = function(type, key, special) {
         }
 
         // handle select start.
-        if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN) && (InstrumentHandler.active_instrument)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN) && (InstrumentHandler.active_instrument)) {
             Editor.drawing_sx = Editor.focused_x_line;
             Editor.drawing_ex = Editor.focused_x_line;
             Editor.drawing_y = Editor.focused_y_line;
         }
-        if (type == EventHandler.MOUSE_MOVE) {
+        if (type == EventHandler.EVENT_MOUSE_MOVE) {
             if (Editor.drawing_sx && Editor.drawing_y) {
                 Editor.drawing_ex = Editor.focused_x_line;
             }
         }
-        if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+        if ((key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_UP)) {
             if (Editor.drawing_sx && Editor.drawing_y) {
                 Editor.drawing_ex = Editor.focused_x_line;
 
-                Editor.create_note(InstrumentHandler.active_instrument, Editor.drawing_sx, Editor.drawing_y, Editor.drawing_ex.sub(Editor.drawing_sx));
+                Editor.create_note(InstrumentHandler.active_instrument, Editor.drawing_sx, Editor.drawing_y, Editor.drawing_ex.sub(Editor.drawing_sx), 0.5, 0.5);
 
                 Editor.drawing_sx = null;
                 Editor.drawing_ex = null;
@@ -465,21 +472,21 @@ Editor.content_mouse_event = function(type, key, special) {
     // handle selection
     if (Editor.current_tool == MenuHandler.TOOL_SELECT) {
         // cancel selection.
-        if ((inside) && (key == EventHandler.MOUSE_RIGHT_BUTTON) && (type == EventHandler.MOUSE_UP))
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_RIGHT) && (type == EventHandler.EVENT_MOUSE_UP))
             Editor.clear_selected();
 
         // handle select start.
-        if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
             // TODO:: judge select single note first.
             Editor.clear_selected();
             Editor.selecting = true;
             Editor.update_selected();
         }
-        if (type == EventHandler.MOUSE_MOVE) {
+        if (type == EventHandler.EVENT_MOUSE_MOVE) {
             if (Editor.selecting)
                 Editor.update_selected();
         }
-        if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+        if ((key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_UP)) {
             if (Editor.selecting) {
                 Editor.update_selected();
                 Editor.selecting = false;
@@ -490,7 +497,7 @@ Editor.content_mouse_event = function(type, key, special) {
     // handle base set
     if (Editor.current_tool == MenuHandler.TOOL_BASE) {
         // change reference.
-        if ((inside) && (key == EventHandler.MOUSE_RIGHT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_RIGHT) && (type == EventHandler.EVENT_MOUSE_UP)) {
             if (Editor.referenced_bar) {
                 Editor.referenced_bar.selected = false;
                 if (Editor.referenced_bar == Editor.focused_bar) Editor.referenced_bar = null;
@@ -506,11 +513,11 @@ Editor.content_mouse_event = function(type, key, special) {
         }
 
         // handle select start.
-        if ((inside) && (key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_DOWN)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
             Editor.drawing_bar = Editor.focused_bar;
             Editor.drawing_base = Editor.focused_y_line;
         }
-        if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+        if ((key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_UP)) {
             if (Editor.drawing_bar && Editor.drawing_base) {
                 Editor.drawing_bar.set_base(Editor.drawing_base);
                 Editor.drawing_bar = null;
@@ -520,7 +527,7 @@ Editor.content_mouse_event = function(type, key, special) {
     }
 
     // record mouse release.
-    if ((key == EventHandler.MOUSE_LEFT_BUTTON) && (type == EventHandler.MOUSE_UP)) {
+    if ((key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_UP)) {
         if (Editor.press_st_pos) {
             Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
             Editor.press_st_pos = null;

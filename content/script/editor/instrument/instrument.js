@@ -72,7 +72,7 @@ InstrumentHandler.create_container = function() {
 
         content.add_mouse_event(function(type, key, special) {
             let inside = content.inside(EventHandler.mouse_position);
-            if (inside || (type != EventHandler.MOUSE_DOWN)) {
+            if (inside || (type != EventHandler.EVENT_MOUSE_DOWN)) {
                 for (let i in InstrumentHandler.instruments)
                     InstrumentHandler.instruments[i].panel.mouse_event(type, key, special);
             }
