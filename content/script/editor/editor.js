@@ -369,6 +369,27 @@ Editor.create_note = function(instrument, x, y, duration) {
         ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), note.instrument.color, 3);
     };
 
+    note.play_in_future = function() {
+        let delta_x = note.x.to_float() - Editor.play_x;
+        if (delta_x < 0) return;
+        if (delta_x == 0) note.play();
+        if (delta_x > 0)  note.set_timeout_id(setTimeout(function() { note.play(); }, delta_x * Editor.unit_time * 1000));
+    };
+
+    note.set_timeout_id = function(timeout_id) {
+        if (note.timeout_id) clearTimeout(note.timeout_id);
+        note.timeout_id = timeout_id;
+    };
+
+    note.play = function(duration_override) {
+        let frequency = note.y.to_float() * Editor.ZERO_FREQUENCY;
+        let amplitude = 0.25;
+        let duration;
+        if (duration_override) duration = duration_override;
+        else duration = note.duration.to_float() * Editor.unit_time;
+        note.instrument.play(frequency, amplitude, duration);
+    };
+
     note.set_x(x);
 
     return note;
