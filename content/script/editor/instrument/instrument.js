@@ -15,7 +15,6 @@ InstrumentHandler.init = function() {
     InstrumentHandler.active_instrument = null;
 };
 
-
 InstrumentHandler.create_container = function() {
     let create_panel = function() {
         let panel = {};
@@ -81,6 +80,8 @@ InstrumentHandler.create_container = function() {
             InstrumentHandler.offset_y = ratio * (InstrumentHandler.imagine_size_y - InstrumentHandler.content_panel.size.y);
             InstrumentHandler.update_instrument_panels(false);
         };
+
+        scroll_bar.drager.change_state([ButtonHandler.BUTTON_STATIC]);
     };
 
     create_panel();
@@ -111,10 +112,10 @@ InstrumentHandler.new_instrument = function(source) {
     instrument.selected = false;
 
     if (instrument.source == InstrumentHandler.SINE_SINTRUMENT)
-        instrument.name = "Sine Wave";
+        instrument.name = "正弦波";
     else
         instrument.name = "File";
-    instrument.color = new Color(1, 0.5, 0.5, 1);
+    instrument.color = new Color(Math.random(), Math.random(), Math.random(), 1);
 
     instrument.create_panel = function() {
         let panel = {};
@@ -144,6 +145,17 @@ InstrumentHandler.new_instrument = function(source) {
 
         panel.draw_content = function(ctxw) {
             ctxw.draw_rect(InstrumentHandler.abs_to_draw(panel.position), panel.size, panel.fillcolor);
+            TextHandler.draw_in_row(
+                ctxw.ctx,
+                InstrumentHandler.abs_to_draw(panel.position).add(new Point2((InstrumentHandler.ELEMENT_INTERVAL * 2) + InstrumentHandler.ELEMENT_HEIGHT, InstrumentHandler.ELEMENT_INTERVAL)),
+                "幼圆",
+                InstrumentHandler.ELEMENT_HEIGHT,
+                false,
+                ColorHandler.COLOR_THEME_2,
+                null,
+                false,
+                instrument.name
+            );
             instrument.panel.color_button.draw_content(ctxw);
             instrument.panel.delete_button.draw_content(ctxw);
         };
@@ -308,6 +320,7 @@ InstrumentHandler.new_instrument = function(source) {
 
 InstrumentHandler.select_instrument = function(instrument) {
     InstrumentHandler.active_instrument = instrument;
+    if (instrument) MenuHandler.select_tool(MenuHandler.TOOL_DRAW);
     for (let i in InstrumentHandler.instruments)
         InstrumentHandler.instruments[i].set_select(InstrumentHandler.instruments[i] == instrument);
 };

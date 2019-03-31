@@ -2,6 +2,11 @@ var AudioHandler = {};
 
 AudioHandler.init = function() {
     AudioHandler.context = new AudioContext();
+    AudioHandler.playing = false;
+};
+
+AudioHandler.set_playing = function(playing) {
+    AudioHandler.playing = playing;
 };
 
 AudioHandler.load = function(src, callback) {

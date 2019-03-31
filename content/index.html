@@ -113,6 +113,7 @@ async function start() {
         "./script/editor/instrument/instrument.js",
         "./script/editor/scrollhandler.js",
         "./script/editor/editor.js",
+        "./script/editor/audio.js",
     ]);
 	
 	window.onresize = DoubleBuff.resize_to_client;
@@ -143,7 +144,7 @@ async function start() {
     InstrumentHandler.init();
     ParentPanel.init();
 
-    for (let i = 0; i < 25; i++)
+    for (let i = 0; i < 2; i++)
     	InstrumentHandler.new_instrument(InstrumentHandler.SINE_SINTRUMENT);
 
 	setInterval(update, 1000 / 60);

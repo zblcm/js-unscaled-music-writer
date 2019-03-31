@@ -28,7 +28,9 @@ MenuHandler.create_panel = function() {
 
     // add button.
     let button;
+    let adjuster;
 
+    // file buttons.
     button = MenuHandler.append_button();
     button.add_on_draw(MenuHandler.draw_file_new(button));
 
@@ -40,6 +42,7 @@ MenuHandler.create_panel = function() {
 
     MenuHandler.append_interval();
 
+    // file tool buttons.
     button = MenuHandler.append_button();
     MenuHandler.button_tools[MenuHandler.TOOL_DRAW] = button;
     button.add_on_draw(MenuHandler.draw_tool_draw(button));
@@ -57,8 +60,7 @@ MenuHandler.create_panel = function() {
 
     MenuHandler.append_interval();
 
-    let adjuster;
-
+    // adjusters.
     adjuster = MenuHandler.append_adjuster();
     adjuster.text_color = ColorHandler.COLOR_EDIT_BASE;
     adjuster.on_adjust = function(adjuster) {
@@ -95,6 +97,19 @@ MenuHandler.create_panel = function() {
         return list[index];
     };
     adjuster.on_adjust();
+
+    MenuHandler.append_interval();
+
+    // time buttons.
+    button = MenuHandler.append_button();
+    button.add_on_draw(MenuHandler.draw_time_play(button));
+    button.on_click = function() {
+        AudioHandler.set_playing(!AudioHandler.playing);
+        if (AudioHandler.playing)
+            button.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_4;
+        else
+            button.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_5;
+    };
 
     return panel;
 };
@@ -173,6 +188,12 @@ MenuHandler.append_adjuster = function() {
 \*******************************/
 
 MenuHandler.select_tool = function(tool_key) {
+    if (Editor.current_tool == tool_key)
+        return;
+    if (Editor.current_tool == MenuHandler.TOOL_DRAW)
+        for (let i in InstrumentHandler.instruments)
+            InstrumentHandler.instruments[i].set_select(false);
+
     Editor.current_tool = null;
     let button;
     for (let i in MenuHandler.button_tools) {
@@ -236,7 +257,7 @@ MenuHandler.draw_file_save = function(button) {
             new Point2(button.size.x * 0.750, button.size.y * 0.750),
             new Point2(button.size.x * 0.250, button.size.y * 0.750),
             new Point2(button.size.x * 0.250, button.size.y * 0.250),
-            new Point2(button.size.x * 0.625, button.size.y * 0.250),
+            new Point2(button.size.x * 0.625, button.size.y * 0.250)
         ].map(function(old) {
             return old.add(button.position);
         }), false, null, ColorHandler.COLOR_THEME_2, 2);
@@ -279,5 +300,36 @@ MenuHandler.draw_tool_base = function(button) {
         let p1 = new Point2(button.size.x * 0.25, button.size.y * 0.5).add(button.position);
         let p2 = new Point2(button.size.x * 0.75, button.size.y * 0.5).add(button.position);
         ctxw.draw_line(p1, p2, ColorHandler.COLOR_BASE, 2);
+    };
+};
+
+MenuHandler.draw_time_play = function(button) {
+    return function(ctxw) {
+        if (AudioHandler.playing) {
+            ctxw.draw_shape([
+                new Point2(button.size.x * 0.2, button.size.y * 0.2),
+                new Point2(button.size.x * 0.4, button.size.y * 0.2),
+                new Point2(button.size.x * 0.4, button.size.y * 0.8),
+                new Point2(button.size.x * 0.2, button.size.y * 0.8)
+            ].map(function(old) {
+                return old.add(button.position);
+            }), true, ColorHandler.COLOR_THEME_5);
+            ctxw.draw_shape([
+                new Point2(button.size.x * 0.6, button.size.y * 0.2),
+                new Point2(button.size.x * 0.8, button.size.y * 0.2),
+                new Point2(button.size.x * 0.8, button.size.y * 0.8),
+                new Point2(button.size.x * 0.6, button.size.y * 0.8)
+            ].map(function(old) {
+                return old.add(button.position);
+            }), true, ColorHandler.COLOR_THEME_5);
+        }
+        else
+            ctxw.draw_shape([
+                new Point2(button.size.x * 0.25, button.size.y * 0.25),
+                new Point2(button.size.x * 0.75, button.size.y * 0.50),
+                new Point2(button.size.x * 0.25, button.size.y * 0.75)
+            ].map(function(old) {
+                return old.add(button.position);
+            }), true, ColorHandler.COLOR_THEME_2);
     };
 };
