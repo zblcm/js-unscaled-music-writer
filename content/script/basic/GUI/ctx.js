@@ -23,6 +23,9 @@ var Canvas_wraper = function(canvas) {
 			this.ctx.strokeRect(Math.round(position.x), Math.round(position.y), Math.round(size.x), Math.round(size.y));
 		}
 	};
+    this.draw_circle = function(position, radius, fill_color, stroke_color, stroke_width) {
+        this.draw_arc(position, radius, 0, Math.PI * 2, true, fill_color, stroke_color, stroke_width);
+    };
 	this.draw_arc = function(position, radius, start, end, clockwise, fill_color, stroke_color, stroke_width) {
 		
 		this.ctx.beginPath();

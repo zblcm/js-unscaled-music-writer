@@ -1,15 +1,18 @@
 var InstrumentHandler = {};
-InstrumentHandler.CONTAINER_WIDTH = 265;
+InstrumentHandler.ELEMENT_WIDTH = 250;
 InstrumentHandler.CONTAINER_PADDING = 15;
 InstrumentHandler.ELEMENT_HEIGHT = 20;
 InstrumentHandler.ELEMENT_INTERVAL = 5;
 InstrumentHandler.SINE_SINTRUMENT = "SINE";
 
+
 InstrumentHandler.init = function() {
+    InstrumentHandler.CONTAINER_WIDTH = InstrumentHandler.ELEMENT_WIDTH + (3 * InstrumentHandler.CONTAINER_PADDING) + ScrollHandler.WIDTH;
     InstrumentHandler.instruments = [];
     InstrumentHandler.canvas = document.createElement("canvas");
     InstrumentHandler.canvas.wraper = new Canvas_wraper(InstrumentHandler.canvas);
     InstrumentHandler.offset_y = 0;
+    InstrumentHandler.active_instrument = null;
 };
 
 
@@ -23,9 +26,9 @@ InstrumentHandler.create_container = function() {
         panel.fillcolor = ColorHandler.COLOR_THEME_2;
 
         panel.add_on_resize(function() {
-            panel.size = new Point2(InstrumentHandler.CONTAINER_WIDTH, DoubleBuff.size.y - MenuHandler.MENU_HEIGHT);
+            panel.size = new Point2(InstrumentHandler.ELEMENT_WIDTH + ScrollHandler.WIDTH + (3 * InstrumentHandler.CONTAINER_PADDING), DoubleBuff.size.y - MenuHandler.MENU_HEIGHT);
             InstrumentHandler.scroll_bar.update_size();
-            InstrumentHandler.content_panel.size = new Point2(InstrumentHandler.CONTAINER_WIDTH - ScrollHandler.WIDTH - (3 * InstrumentHandler.CONTAINER_PADDING), DoubleBuff.size.y - MenuHandler.MENU_HEIGHT - (2 * InstrumentHandler.CONTAINER_PADDING));
+            InstrumentHandler.content_panel.size = new Point2(InstrumentHandler.ELEMENT_WIDTH, DoubleBuff.size.y - MenuHandler.MENU_HEIGHT - (2 * InstrumentHandler.CONTAINER_PADDING));
             InstrumentHandler.scroll_bar.update_size(InstrumentHandler.imagine_size_y, InstrumentHandler.content_panel.size.y, InstrumentHandler.content_panel.size.y);
         });
 
@@ -68,7 +71,7 @@ InstrumentHandler.create_container = function() {
         InstrumentHandler.scroll_bar = scroll_bar;
         InstrumentHandler.panel.add_child(scroll_bar);
 
-        scroll_bar.position = new Point2(InstrumentHandler.CONTAINER_WIDTH - ScrollHandler.WIDTH - InstrumentHandler.CONTAINER_PADDING, MenuHandler.MENU_HEIGHT + InstrumentHandler.CONTAINER_PADDING);
+        scroll_bar.position = new Point2(InstrumentHandler.ELEMENT_WIDTH + (2 * InstrumentHandler.CONTAINER_PADDING), MenuHandler.MENU_HEIGHT + InstrumentHandler.CONTAINER_PADDING);
         scroll_bar.fillcolor = ColorHandler.COLOR_THEME_4;
         scroll_bar.drager.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_5;
         scroll_bar.drager.fillcolors[ButtonHandler.BUTTON_HOVER] = ColorHandler.COLOR_THEME_6;
@@ -89,6 +92,7 @@ InstrumentHandler.create_container = function() {
         for (let i in InstrumentHandler.instruments) {
             let instrument = InstrumentHandler.instruments[i];
             instrument.panel.position = new Point2(InstrumentHandler.content_panel.position.x, InstrumentHandler.content_panel.position.y + accumulate_y - InstrumentHandler.offset_y);
+            instrument.panel.on_update_position();
             accumulate_y = accumulate_y + instrument.panel.size.y + InstrumentHandler.CONTAINER_PADDING;
         }
         if (resize) {
@@ -126,12 +130,27 @@ InstrumentHandler.new_instrument = function(source) {
         panel.fillcolors[ButtonHandler.BUTTON_PRESS] = ColorHandler.COLOR_THEME_7;
         panel.fillcolors[ButtonHandler.BUTTON_ACTIVE] = ColorHandler.COLOR_THEME_4;
 
+        let old_inside = panel.inside;
+        panel.inside = function(p) {
+            if (panel.color_button.inside(p)) return false;
+            if (panel.delete_button.inside(p)) return false;
+            return old_inside(p);
+        };
+
+        panel.on_update_position = function() {
+            instrument.panel.color_button.update_position();
+            instrument.panel.delete_button.update_position();
+        };
+
         panel.draw_content = function(ctxw) {
             ctxw.draw_rect(InstrumentHandler.abs_to_draw(panel.position), panel.size, panel.fillcolor);
+            instrument.panel.color_button.draw_content(ctxw);
+            instrument.panel.delete_button.draw_content(ctxw);
         };
 
         panel.add_mouse_event(function(type, key, special) {
-
+            instrument.panel.color_button.mouse_event(type, key, special);
+            instrument.panel.delete_button.mouse_event(type, key, special);
         });
 
         panel.set_expand = function(expand) {
@@ -142,13 +161,81 @@ InstrumentHandler.new_instrument = function(source) {
             InstrumentHandler.update_instrument_panels(true);
         };
 
-        panel.on_click = function() {
-            InstrumentHandler.select_instrument(instrument);
-        };
+        panel.on_click = function() { InstrumentHandler.select_instrument(instrument); };
 
         panel.change_state(ButtonHandler.BUTTON_STATIC);
 
         return panel;
+    };
+
+    instrument.create_buttons = function () {
+        let create_color_button = function() {
+            let button = {};
+            instrument.panel.color_button = button;
+            PanelHandler.panelize(button);
+            ButtonHandler.buttonlize(button);
+
+            button.radius = InstrumentHandler.ELEMENT_HEIGHT / 2;
+
+            button.update_position = function() {
+                button.position = instrument.panel.position.add(new Point2(InstrumentHandler.ELEMENT_INTERVAL + button.radius, InstrumentHandler.ELEMENT_INTERVAL + button.radius));
+            };
+
+            button.draw_content = function(ctxw) { ctxw.draw_circle(InstrumentHandler.abs_to_draw(button.position), button.radius, instrument.color); };
+
+            return button;
+        };
+
+        let create_delete_button = function() {
+            let button = {};
+            instrument.panel.delete_button = button;
+            PanelHandler.panelize(button);
+            ButtonHandler.buttonlize(button);
+
+            button.fillcolors[ButtonHandler.BUTTON_HOVER] = ColorHandler.COLOR_THEME_6;
+            button.fillcolors[ButtonHandler.BUTTON_PRESS] = ColorHandler.COLOR_THEME_7;
+            button.radius = InstrumentHandler.ELEMENT_HEIGHT / 2;
+
+            button.inside = function (p) { return p.sub(button.position).length() < button.radius };
+
+            button.update_position = function() {
+                button.position = new Point2(instrument.panel.position.x + instrument.panel.size.x - (3 * (InstrumentHandler.ELEMENT_HEIGHT + InstrumentHandler.ELEMENT_INTERVAL)) + button.radius, instrument.panel.position.y + InstrumentHandler.ELEMENT_INTERVAL + button.radius);
+            };
+
+            button.draw_content = function(ctxw) {
+                ctxw.draw_circle(InstrumentHandler.abs_to_draw(button.position), button.radius, button.fillcolor);
+
+                let WIDTH = 2;
+                let LENGTH = button.radius / 2;
+                ctxw.draw_shape([
+                    new Point2(- WIDTH, 0),
+                    new Point2(- LENGTH, - LENGTH + WIDTH),
+                    new Point2(- LENGTH + WIDTH, - LENGTH),
+                    new Point2(0, - WIDTH),
+                    new Point2(  LENGTH - WIDTH, - LENGTH),
+                    new Point2(  LENGTH, - LENGTH + WIDTH),
+                    new Point2(  WIDTH, 0),
+                    new Point2(  LENGTH,   LENGTH - WIDTH),
+                    new Point2(  LENGTH - WIDTH, + LENGTH),
+                    new Point2(0,   WIDTH),
+                    new Point2(- LENGTH + WIDTH,   LENGTH),
+                    new Point2(- LENGTH,   LENGTH - WIDTH),
+                ].map(function(p) {
+                    return InstrumentHandler.abs_to_draw(p.add(button.position));
+                }), true, new Color(1, 0, 0, 1));
+            };
+            button.on_click = function() { instrument.remove(); };
+
+            button.change_state(ButtonHandler.BUTTON_STATIC);
+
+            return button;
+        };
+
+        let create_expand_button = function() {
+        };
+
+        create_color_button();
+        create_delete_button();
     };
 
     instrument.create_play_function = function() {
@@ -188,18 +275,33 @@ InstrumentHandler.new_instrument = function(source) {
     };
 
     instrument.set_select = function(selected) {
-        if (selected)
+        let button_static_color;
+        if (selected) {
             instrument.panel.change_state(ButtonHandler.BUTTON_ACTIVE);
-        else
+            button_static_color = ColorHandler.COLOR_THEME_5;
+        }
+        else {
             instrument.panel.change_state(ButtonHandler.BUTTON_STATIC);
+            button_static_color = ColorHandler.COLOR_THEME_4;
+        }
+        instrument.panel.delete_button.fillcolors[ButtonHandler.BUTTON_STATIC] = button_static_color;
+        instrument.panel.delete_button.change_state(instrument.panel.delete_button.state);
+    };
 
+    instrument.remove = function() {
+        General.array_remove(InstrumentHandler.instruments, instrument);
+        if (InstrumentHandler.active_instrument == instrument)
+            InstrumentHandler.select_instrument(null);
+        InstrumentHandler.update_instrument_panels(true);
     };
 
     instrument.create_panel();
+    instrument.create_buttons();
     instrument.create_play_function();
 
     InstrumentHandler.instruments.push(instrument);
     instrument.panel.set_expand(false);
+    instrument.set_select(false);
 
     return instrument;
 };
