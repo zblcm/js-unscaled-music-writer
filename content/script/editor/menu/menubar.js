@@ -8,10 +8,15 @@ MenuHandler.TOOL_DRAW = "DRAW";
 MenuHandler.TOOL_SELECT = "SELECT";
 MenuHandler.TOOL_BASE = "BASE";
 
+MenuHandler.TIME_PLAY = "PLAY";
+MenuHandler.TIME_LEFT = "LEFT";
+MenuHandler.TIME_CENTER = "CENTER";
+
 MenuHandler.init = function() {
     MenuHandler.normal_x = new Fraction(1, 16);
     MenuHandler.next_element_offset = 0;
     MenuHandler.button_tools = {};
+    MenuHandler.button_times = {};
 };
 
 MenuHandler.create_panel = function() {
@@ -102,13 +107,24 @@ MenuHandler.create_panel = function() {
 
     // time buttons.
     button = MenuHandler.append_button();
+    MenuHandler.button_times[MenuHandler.TIME_PLAY] = button;
     button.add_on_draw(MenuHandler.draw_time_play(button));
+    button.on_click = function() { MenuHandler.set_time_playing(!AudioHandler.playing); };
+
+    button = MenuHandler.append_button();
+    MenuHandler.button_times[MenuHandler.TIME_LEFT] = button;
+    button.add_on_draw(MenuHandler.draw_time_left(button));
     button.on_click = function() {
-        AudioHandler.set_playing(!AudioHandler.playing);
-        if (AudioHandler.playing)
-            button.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_4;
-        else
-            button.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_5;
+        MenuHandler.set_time_playing(false);
+        Editor.play_x = 0;
+    };
+
+    button = MenuHandler.append_button();
+    button.add_on_draw(MenuHandler.draw_time_center(button));
+    MenuHandler.button_times[MenuHandler.TIME_CENTER] = button;
+    button.on_click = function() {
+        MenuHandler.set_time_playing(false);
+        Editor.play_x = Editor.selected_x;
     };
 
     return panel;
@@ -208,7 +224,14 @@ MenuHandler.select_tool = function(tool_key) {
             button.change_state(ButtonHandler.BUTTON_STATIC);
     }
 };
-
+MenuHandler.set_time_playing = function(playing) {
+    AudioHandler.set_playing(playing);
+    let button = MenuHandler.button_times[MenuHandler.TIME_PLAY];
+    if (AudioHandler.playing)
+        button.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_4;
+    else
+        button.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_5;
+};
 
 /*******************************\
 *                               *
@@ -331,5 +354,36 @@ MenuHandler.draw_time_play = function(button) {
             ].map(function(old) {
                 return old.add(button.position);
             }), true, ColorHandler.COLOR_THEME_2);
+    };
+};
+MenuHandler.draw_time_left = function(button) {
+    return function(ctxw) {
+        ctxw.draw_shape([
+            new Point2(button.size.x * 0.75, button.size.y * 0.25),
+            new Point2(button.size.x * 0.75, button.size.y * 0.75),
+            new Point2(button.size.x * 0.25, button.size.y * 0.50)
+        ].map(function(old) {
+            return old.add(button.position);
+        }), true, ColorHandler.COLOR_THEME_2);
+        ctxw.draw_line(
+            button.position.add(new Point2(button.size.x * 0.25, button.size.y * 0.25)),
+            button.position.add(new Point2(button.size.x * 0.25, button.size.y * 0.75)),
+            ColorHandler.COLOR_THEME_2, 2);
+    };
+};
+MenuHandler.draw_time_center = function(button) {
+    return function(ctxw) {
+        ctxw.draw_shape([
+            new Point2(button.size.x * 0.25, button.size.y * 0.25),
+            new Point2(button.size.x * 0.75, button.size.y * 0.75),
+            new Point2(button.size.x * 0.75, button.size.y * 0.25),
+            new Point2(button.size.x * 0.25, button.size.y * 0.75)
+        ].map(function(old) {
+            return old.add(button.position);
+        }), true, ColorHandler.COLOR_THEME_2);
+        ctxw.draw_line(
+            button.position.add(new Point2(button.size.x * 0.5, button.size.y * 0.25)),
+            button.position.add(new Point2(button.size.x * 0.5, button.size.y * 0.75)),
+        ColorHandler.COLOR_THEME_2, 2);
     };
 };

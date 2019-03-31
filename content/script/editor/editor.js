@@ -37,24 +37,30 @@ Editor.init = function() {
     Editor.create_bar();
 
     Editor.imagine_size = new Point2(100, 100);
+
+    Editor.play_x = 0;
+    Editor.selected_x = 0;
 };
 Editor.create_content_panel = function() {
     let panel = {};
     Editor.content_panel = panel;
     PanelHandler.panelize(panel);
 
+    panel.fillcolor = ColorHandler.COLOR_THEME_0;
+    panel.position = new Point2(Editor.panel.position.x + Editor.LEFT_RULER_WIDTH, Editor.panel.position.y + Editor.TOP_RULER_HEIGHT);
+
     // canvas
-    Editor.canvas = document.createElement("canvas");
-    Editor.canvas.wraper = new Canvas_wraper(Editor.canvas);
+    Editor.content_panel.canvas = document.createElement("canvas");
+    Editor.content_panel.canvas.wraper = new Canvas_wraper(Editor.content_panel.canvas);
 
     panel.add_on_draw(function(ctxw) {
-        Editor.canvas.wraper.clear();
-        panel.draw_content(Editor.canvas.wraper);
-        ctxw.draw_image(Editor.canvas, panel.position);
+        Editor.content_panel.canvas.wraper.clear();
+        panel.draw_content(Editor.content_panel.canvas.wraper);
+        ctxw.draw_image(Editor.content_panel.canvas, panel.position);
     });
     panel.add_mouse_event(Editor.content_mouse_event);
 
-    Editor.panel.add_on_resize(function() { Editor.canvas.wraper.set_size(panel.size); });
+    Editor.panel.add_on_resize(function() { Editor.content_panel.canvas.wraper.set_size(panel.size); });
 
     panel.draw_content = Editor.content_draw;
 
@@ -74,17 +80,59 @@ Editor.create_content_panel = function() {
 
     return panel;
 };
+Editor.create_x_ruler_panel = function () {
+    let panel = {};
+    Editor.x_ruler_panel = panel;
+    PanelHandler.panelize(panel);
+
+    panel.position = new Point2(Editor.content_panel.position.x, Editor.panel.position.y);
+    panel.fillcolor = ColorHandler.COLOR_THEME_4;
+
+    panel.add_on_draw(function(ctxw) {
+        let x, sy, ey;
+        sy = panel.position.y;
+        ey = Editor.content_panel.position.y + Editor.content_panel.size.y;
+
+        x = Editor.unit_to_abs_x(Editor.play_x);
+        if ((x >= Editor.content_panel.position.x) && (x <= Editor.content_panel.position.x + Editor.content_panel.size.x))
+            ctxw.draw_line(new Point2(x, sy), new Point2(x, ey), ColorHandler.COLOR_TIME, 1.5);
+        x = Editor.unit_to_abs_x(Editor.selected_x);
+        if ((x >= Editor.content_panel.position.x) && (x <= Editor.content_panel.position.x + Editor.content_panel.size.x))
+            ctxw.draw_line(new Point2(x, sy), new Point2(x, ey), ColorHandler.COLOR_THEME_7, 1.0);
+    });
+
+    panel.add_mouse_event(function(type, key, special) {
+        let inside = panel.inside(EventHandler.mouse_position);
+        if ((type == EventHandler.MOUSE_DOWN) && (key == EventHandler.MOUSE_LEFT_BUTTON) && inside)
+            panel.pressing = true;
+        if ((type == EventHandler.MOUSE_UP) && (key == EventHandler.MOUSE_LEFT_BUTTON))
+            panel.pressing = false;
+        if (panel.pressing)
+            Editor.selected_x = Editor.abs_to_unit_x(EventHandler.mouse_position.x);
+    });
+
+    return panel;
+};
+Editor.create_y_ruler_panel = function () {
+    let panel = {};
+    Editor.y_ruler_panel = panel;
+    PanelHandler.panelize(panel);
+
+    panel.position = new Point2(Editor.panel.position.x, Editor.content_panel.position.y);
+    panel.fillcolor = ColorHandler.COLOR_THEME_4;
+
+    return panel;
+};
 Editor.create_panel = function() {
-    // create
     Editor.panel = {};
-    Editor.x_ruler_panel = {};
-    Editor.y_ruler_panel = {};
 
     PanelHandler.panelize(Editor.panel);
-    PanelHandler.panelize(Editor.x_ruler_panel);
-    PanelHandler.panelize(Editor.y_ruler_panel);
+    Editor.panel.position = new Point2(InstrumentHandler.CONTAINER_WIDTH, MenuHandler.MENU_HEIGHT);
 
+    // create
     Editor.create_content_panel();
+    Editor.create_x_ruler_panel();
+    Editor.create_y_ruler_panel();
     Editor.x_scroll_bar = ScrollHandler.new_scroll(true);
     Editor.y_scroll_bar = ScrollHandler.new_scroll(false);
     Editor.x_scale_panel = ScrollHandler.new_scale(true, false);
@@ -100,10 +148,6 @@ Editor.create_panel = function() {
     Editor.panel.add_child(Editor.y_scale_panel);
 
     // position and size.
-    Editor.panel.position = new Point2(InstrumentHandler.CONTAINER_WIDTH, MenuHandler.MENU_HEIGHT);
-    Editor.content_panel.position = new Point2(Editor.panel.position.x + Editor.LEFT_RULER_WIDTH, Editor.panel.position.y + Editor.TOP_RULER_HEIGHT);
-    Editor.x_ruler_panel.position = new Point2(Editor.content_panel.position.x, Editor.panel.position.y);
-    Editor.y_ruler_panel.position = new Point2(Editor.panel.position.x, Editor.content_panel.position.y);
     Editor.x_scale_panel.size = new Point2(Editor.UNIT_SCALE_LENGTH, ScrollHandler.WIDTH);
     Editor.y_scale_panel.size = new Point2(ScrollHandler.WIDTH, Editor.UNIT_SCALE_LENGTH);
 
@@ -124,9 +168,6 @@ Editor.create_panel = function() {
     // color
     Editor.set_panel_color = function() {
         Editor.panel.fillcolor = ColorHandler.COLOR_THEME_2;
-        Editor.content_panel.fillcolor = ColorHandler.COLOR_THEME_0;
-        Editor.x_ruler_panel.fillcolor = ColorHandler.COLOR_THEME_4;
-        Editor.y_ruler_panel.fillcolor = ColorHandler.COLOR_THEME_4;
         Editor.x_scroll_bar.fillcolor = ColorHandler.COLOR_THEME_4;
         Editor.y_scroll_bar.fillcolor = ColorHandler.COLOR_THEME_4;
         Editor.x_scale_panel.fillcolors[ButtonHandler.BUTTON_STATIC] = ColorHandler.COLOR_THEME_3;

@@ -138,7 +138,8 @@ async function start() {
 	DoubleBuff.init(canvas_0, canvas_1);
     window.onresize = DoubleBuff.resize_to_client;
     DoubleBuff.resize_to_client();
-	
+
+    Ticker.init();
 	EventHandler.init();
     MenuHandler.init();
     InstrumentHandler.init();
@@ -152,9 +153,8 @@ async function start() {
 
 function update() {
 	EventHandler.on_draw(DoubleBuff.ctxw);
-	// Ticker.tick();
-	// DoubleBuff.ctx.fillRect(0, 0, 100, 100, "#00ffff");
 	DoubleBuff.flip();
+
 }
 
 /*
