@@ -24,13 +24,15 @@ var Canvas_wraper = function(canvas) {
 		}
 	};
     this.draw_circle = function(position, radius, fill_color, stroke_color, stroke_width) {
-        this.draw_arc(position, radius, 0, Math.PI * 2, true, fill_color, stroke_color, stroke_width);
+        this.draw_arc(position, radius, 0, Math.PI * 2, true, fill_color, stroke_color, stroke_width, false, true);
     };
-	this.draw_arc = function(position, radius, start, end, clockwise, fill_color, stroke_color, stroke_width) {
+	this.draw_arc = function(position, radius, start, end, clockwise, fill_color, stroke_color, stroke_width, pass_center, close) {
 		
 		this.ctx.beginPath();
 		this.ctx.arc(Math.round(position.x), Math.round(position.y), radius, start, end, clockwise);
-		this.ctx.closePath();
+		if (pass_center) this.ctx.lineTo(position.x, position.y);
+		if (pass_center || close)
+			this.ctx.closePath();
 		
 		if (fill_color) {
 			this.ctx.fillStyle = fill_color.to_style();

@@ -12,6 +12,7 @@ Editor.NOTE_SELECT_RADIUS = 5;
 
 Editor.ZERO_FREQUENCY = 20.0;
 Editor.MIN_VOLUME = 0.01;
+Editor.VOLUME_UNIT = 0.01;
 
 Editor.init = function() {
     Editor.notes = [];
@@ -343,40 +344,58 @@ Editor.create_bar = function() {
     return bar;
 };
 
-Editor.create_note = function(instrument, x, y, duration, s_volume, e_volume) {
+Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
     let note = {};
     note.instrument = instrument;
-    note.x = null;
-    note.y = y;
-    note.duration = duration;
-    note.s_volume = s_volume;
-    note.e_volume = e_volume;
 
-    note.set_x = function(x) {
-        note.x = x;
+    PanelHandler.panelize(note);
+    ButtonHandler.buttonlize(note);
+    note.sx = null;
+    note.y = y;
+    note.ex = ex;
+    note.st_volume = st_volume;
+    note.ed_volume = ed_volume;
+
+    note.set_sx = function(sx) {
+        note.sx = sx;
         if (note.bar) General.array_remove(note.bar.notes, note);
-        note.bar = Editor.bars[Math.floor(note.x.to_float())];
+        note.bar = Editor.bars[Math.floor(note.sx.to_float())];
         note.bar.notes.push(note);
     };
 
     note.should_draw = function() {
-        let sx = Editor.unit_to_draw_x(note.x.to_float());
-        let ex = Editor.unit_to_draw_x(note.x.to_float() + note.duration.to_float());
+        let sx = Editor.unit_to_draw_x(note.sx.to_float());
+        let ex = Editor.unit_to_draw_x(note.ex.to_float());
         let y = Editor.unit_to_draw_y(General.log(2, note.y.to_float()));
 
         return (ex > 0) && (sx < Editor.content_panel.size.x) && (y > 0) && (y < Editor.content_panel.size.y);
     };
 
+    note.inside = function(p) {
+        if (!Editor.content_panel.inside(p)) return false;
+        if (note.st_adjuster && note.st_adjuster.inside(p)) return false;
+        if (note.ed_adjuster && note.ed_adjuster.inside(p)) return false;
+
+        let sx = Editor.unit_to_abs_x(note.sx.to_float());
+        let ex = Editor.unit_to_abs_x(note.ex.to_float());
+        let y = Editor.unit_to_abs_y(General.log(2, note.y.to_float()));
+
+        return (p.x > sx) && (p.x < ex) && (Math.abs(p.y - y) < Editor.NOTE_SELECT_RADIUS);
+    };
+
     note.draw_content = function(ctxw) {
-        let sx = Editor.unit_to_draw_x(note.x.to_float());
-        let ex = Editor.unit_to_draw_x(note.x.to_float() + note.duration.to_float());
+        let sx = Editor.unit_to_draw_x(note.sx.to_float());
+        let ex = Editor.unit_to_draw_x(note.ex.to_float());
         let y = Editor.unit_to_draw_y(General.log(2, note.y.to_float()));
 
         ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), note.instrument.color, 3);
+
+        if (note.st_adjuster) note.st_adjuster.draw_content(ctxw);
+        if (note.ed_adjuster) note.ed_adjuster.draw_content(ctxw);
     };
 
     note.play_in_future = function() {
-        let delta_x = note.x.to_float() - Editor.play_x;
+        let delta_x = note.sx.to_float() - Editor.play_x;
         if (delta_x < 0) return;
         if (delta_x == 0) note.play();
         if (delta_x > 0)  note.set_timeout_id(setTimeout(function() { note.play(); }, delta_x * Editor.unit_time * 1000));
@@ -391,15 +410,92 @@ Editor.create_note = function(instrument, x, y, duration, s_volume, e_volume) {
         let frequency = note.y.to_float() * Editor.ZERO_FREQUENCY;
         let duration;
         if (duration_override) duration = duration_override;
-        else duration = note.duration.to_float() * Editor.unit_time;
-        let s_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.s_volume);
-        let e_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.e_volume);
-        note.instrument.play(frequency, s_volume, duration, e_volume);
+        else duration = (note.ex.to_float() - note.sx.to_float()) * Editor.unit_time;
+        let st_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.st_volume);
+        let ed_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.ed_volume);
+        note.instrument.play(frequency, st_volume, duration, ed_volume);
     };
 
-    note.set_x(x);
+    note.remove = function() {
+        note.set_timeout_id(null);
+        if (note.bar) General.array_remove(note.bar.notes, note);
+    };
+
+    note.add_mouse_event(function(type, key, special) {
+        let result;
+        if (note.st_adjuster) result = note.st_adjuster.mouse_event(type, key, special);
+        if (result) return result;
+        if (note.ed_adjuster) result = note.ed_adjuster.mouse_event(type, key, special);
+        if (result) return result;
+
+    });
+
+    note.set_sx(sx);
+    Editor.note_adjuster(note, true);
+    Editor.note_adjuster(note, false);
 
     return note;
+};
+
+Editor.note_adjuster = function(note, is_start) {
+    let adjuster = {};
+    PanelHandler.panelize(adjuster);
+    ButtonHandler.buttonlize(adjuster);
+
+    adjuster.note = note;
+    adjuster.radius = Editor.NOTE_SELECT_RADIUS;
+
+    if (is_start) {
+        adjuster.note.st_adjuster = adjuster;
+        adjuster.on_adjust = function() { note.st_volume = adjuster.cur_num; };
+        adjuster.get_unit_pos = function () { return new Point2(adjuster.note.sx.to_float(), General.log(2, adjuster.note.y.to_float())); };
+    }
+    else {
+        adjuster.note.ed_adjuster = adjuster;
+        adjuster.on_adjust = function() { note.st_volume = adjuster.cur_num; };
+        adjuster.get_unit_pos = function () { return new Point2(adjuster.note.ex.to_float(), General.log(2, adjuster.note.y.to_float())); };
+    }
+
+    adjuster.fillcolors[ButtonHandler.BUTTON_STATIC] = null;
+    adjuster.fillcolors[ButtonHandler.BUTTON_HOVER] = null;
+    adjuster.fillcolors[ButtonHandler.BUTTON_PRESS] = null;
+    adjuster.change_state(ButtonHandler.BUTTON_STATIC);
+
+    adjuster.cur_num = 0.50;
+
+    adjuster.change_number = function(old, positive) {
+        let num;
+        if (positive) num = old + Editor.VOLUME_UNIT;
+        else num = old - Editor.VOLUME_UNIT;
+        if (num > 1) num = 1;
+        if (num < 0) num = 0;
+        return num;
+    };
+    adjuster.add_mouse_event(function(key, type, special) {
+        let inside = adjuster.inside(EventHandler.mouse_position);
+        if (key == EventHandler.MOUSE_BUTTON_MIDDLE && type == EventHandler.EVENT_MOUSE_MOVE && inside) {
+            let new_num = adjuster.change_number(adjuster.cur_num, special < 0);
+            let old_num = adjuster.cur_num;
+            adjuster.cur_num = new_num;
+            if (old_num != new_num) adjuster.on_adjust();
+        }
+    });
+
+    adjuster.inside = function(p) {
+        if (!Editor.content_panel.inside(p)) return false;
+        let center = Editor.unit_to_abs(adjuster.get_unit_pos());
+        return p.sub(center).length() < adjuster.radius;
+    };
+    adjuster.draw_content = function(ctxw) {
+        let center = Editor.unit_to_draw(adjuster.get_unit_pos());
+        let fill_color = null;
+        let stroke_color = null;
+        if (adjuster.state == ButtonHandler.BUTTON_STATIC) fill_color = adjuster.note.instrument.color;
+        else stroke_color = adjuster.note.instrument.color;
+        ctxw.draw_arc(center, adjuster.radius, 0, 2 * Math.PI * adjuster.cur_num, false, fill_color, stroke_color, 1.5, true);
+    };
+
+    return adjuster;
 };
 
 Editor.find_nearest_x_line = function(abs_x) {
@@ -416,6 +512,10 @@ Editor.content_mouse_event = function(type, key, special) {
     if (Editor.focused_bar) Editor.focused_y_line = (Editor.referenced_bar || Editor.focused_bar).find_nearest_y_line(EventHandler.mouse_position.y);
     if (inside) Editor.focused_x_line = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
     else Editor.focused_x_line = null;
+
+    for (let i in Editor.bars)
+        for (let j in Editor.bars[i].notes)
+            Editor.bars[i].notes[j].mouse_event(type, key, special);
 
     // record mouse press.
     if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
@@ -460,7 +560,7 @@ Editor.content_mouse_event = function(type, key, special) {
             if (Editor.drawing_sx && Editor.drawing_y) {
                 Editor.drawing_ex = Editor.focused_x_line;
 
-                Editor.create_note(InstrumentHandler.active_instrument, Editor.drawing_sx, Editor.drawing_y, Editor.drawing_ex.sub(Editor.drawing_sx), 0.5, 0.5);
+                Editor.create_note(InstrumentHandler.active_instrument, Editor.drawing_sx, Editor.drawing_ex, Editor.drawing_y, 0.5, 0.5);
 
                 Editor.drawing_sx = null;
                 Editor.drawing_ex = null;
