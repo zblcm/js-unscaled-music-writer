@@ -9,6 +9,8 @@ Editor.Y_UNIT_SIZE_MIN = 40;
 Editor.Y_UNIT_SIZE_MAX = 1280;
 Editor.UNIT_SCALE_LENGTH = 200;
 
+Editor.ZERO_FREQUENCY = 20.0;
+
 Editor.init = function() {
     Editor.notes = [];
     Editor.current_time = 0;

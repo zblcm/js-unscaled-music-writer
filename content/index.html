@@ -141,12 +141,14 @@ async function start() {
 
     Ticker.init();
 	EventHandler.init();
+    AudioHandler.init();
     MenuHandler.init();
     InstrumentHandler.init();
     ParentPanel.init();
 
-    for (let i = 0; i < 2; i++)
-    	InstrumentHandler.new_instrument(InstrumentHandler.SINE_SINTRUMENT);
+    for (let key in InstrumentHandler.DEFAULT_INSTRUMENTS)
+    	InstrumentHandler.new_instrument(key);
+    // instrument.play(400, 0.25, 1, 0.01);
 
 	setInterval(update, 1000 / 60);
 }

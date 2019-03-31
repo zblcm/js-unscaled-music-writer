@@ -3,8 +3,24 @@ InstrumentHandler.ELEMENT_WIDTH = 250;
 InstrumentHandler.CONTAINER_PADDING = 15;
 InstrumentHandler.ELEMENT_HEIGHT = 20;
 InstrumentHandler.ELEMENT_INTERVAL = 5;
-InstrumentHandler.SINE_SINTRUMENT = "SINE";
 
+InstrumentHandler.DEFAULT_INSTRUMENTS = {};
+InstrumentHandler.DEFAULT_INSTRUMENTS.SINE      = "SINE";
+InstrumentHandler.DEFAULT_INSTRUMENTS.SQUARE    = "SQUARE";
+InstrumentHandler.DEFAULT_INSTRUMENTS.SAWTOOTH  = "SAWTOOTH";
+InstrumentHandler.DEFAULT_INSTRUMENTS.TRIANGLE  = "TRIANGLE";
+
+InstrumentHandler.default_instrument_oscillator_types = {};
+InstrumentHandler.default_instrument_oscillator_types[InstrumentHandler.DEFAULT_INSTRUMENTS.SINE]       = "sine";
+InstrumentHandler.default_instrument_oscillator_types[InstrumentHandler.DEFAULT_INSTRUMENTS.SQUARE]     = "square";
+InstrumentHandler.default_instrument_oscillator_types[InstrumentHandler.DEFAULT_INSTRUMENTS.SAWTOOTH]   = "sawtooth";
+InstrumentHandler.default_instrument_oscillator_types[InstrumentHandler.DEFAULT_INSTRUMENTS.TRIANGLE]   = "triangle";
+
+InstrumentHandler.default_instrument_names = {};
+InstrumentHandler.default_instrument_names[InstrumentHandler.DEFAULT_INSTRUMENTS.SINE]       = "正弦波";
+InstrumentHandler.default_instrument_names[InstrumentHandler.DEFAULT_INSTRUMENTS.SQUARE]     = "方形波";
+InstrumentHandler.default_instrument_names[InstrumentHandler.DEFAULT_INSTRUMENTS.SAWTOOTH]   = "单调波";
+InstrumentHandler.default_instrument_names[InstrumentHandler.DEFAULT_INSTRUMENTS.TRIANGLE]   = "三角波";
 
 InstrumentHandler.init = function() {
     InstrumentHandler.CONTAINER_WIDTH = InstrumentHandler.ELEMENT_WIDTH + (3 * InstrumentHandler.CONTAINER_PADDING) + ScrollHandler.WIDTH;
@@ -111,8 +127,15 @@ InstrumentHandler.new_instrument = function(source) {
     instrument.source = source;
     instrument.selected = false;
 
-    if (instrument.source == InstrumentHandler.SINE_SINTRUMENT)
-        instrument.name = "正弦波";
+    instrument.is_default = function() {
+        for (let i in InstrumentHandler.DEFAULT_INSTRUMENTS)
+            if (InstrumentHandler.DEFAULT_INSTRUMENTS[i] == instrument.source)
+                return true;
+        return false;
+    };
+
+    if (instrument.is_default())
+        instrument.name = InstrumentHandler.default_instrument_names[instrument.source];
     else
         instrument.name = "File";
     instrument.color = new Color(Math.random(), Math.random(), Math.random(), 1);
@@ -134,13 +157,13 @@ InstrumentHandler.new_instrument = function(source) {
         let old_inside = panel.inside;
         panel.inside = function(p) {
             if (panel.color_button.inside(p)) return false;
-            if (panel.delete_button.inside(p)) return false;
+            if (instrument.panel.delete_button && panel.delete_button.inside(p)) return false;
             return old_inside(p);
         };
 
         panel.on_update_position = function() {
             instrument.panel.color_button.update_position();
-            instrument.panel.delete_button.update_position();
+            if (instrument.panel.delete_button) instrument.panel.delete_button.update_position();
         };
 
         panel.draw_content = function(ctxw) {
@@ -157,12 +180,12 @@ InstrumentHandler.new_instrument = function(source) {
                 instrument.name
             );
             instrument.panel.color_button.draw_content(ctxw);
-            instrument.panel.delete_button.draw_content(ctxw);
+            if (instrument.panel.delete_button) instrument.panel.delete_button.draw_content(ctxw);
         };
 
         panel.add_mouse_event(function(type, key, special) {
             instrument.panel.color_button.mouse_event(type, key, special);
-            instrument.panel.delete_button.mouse_event(type, key, special);
+            if (instrument.panel.delete_button) instrument.panel.delete_button.mouse_event(type, key, special);
         });
 
         panel.set_expand = function(expand) {
@@ -247,12 +270,13 @@ InstrumentHandler.new_instrument = function(source) {
         };
 
         create_color_button();
-        create_delete_button();
+        if (!instrument.is_default())
+            create_delete_button();
     };
 
     instrument.create_play_function = function() {
         // Sine Wave.
-        if (instrument.source == InstrumentHandler.SINE_SINTRUMENT) {
+        if (instrument.is_default()) {
             instrument.play = function(frequency, amplitude, duration, fade) {
                 let g = AudioHandler.context.createGain();
                 g.connect(AudioHandler.context.destination);
@@ -260,7 +284,7 @@ InstrumentHandler.new_instrument = function(source) {
                 if (fade) g.gain.exponentialRampToValueAtTime(fade, AudioHandler.context.currentTime + duration);
 
                 let o1 = AudioHandler.context.createOscillator();
-                o1.type = 'sine';
+                o1.type = InstrumentHandler.default_instrument_oscillator_types[instrument.source];
                 o1.frequency.value = frequency;
                 o1.connect(g);
                 o1.start(0);
@@ -296,8 +320,10 @@ InstrumentHandler.new_instrument = function(source) {
             instrument.panel.change_state(ButtonHandler.BUTTON_STATIC);
             button_static_color = ColorHandler.COLOR_THEME_4;
         }
-        instrument.panel.delete_button.fillcolors[ButtonHandler.BUTTON_STATIC] = button_static_color;
-        instrument.panel.delete_button.change_state(instrument.panel.delete_button.state);
+        if (instrument.panel.delete_button) {
+            instrument.panel.delete_button.fillcolors[ButtonHandler.BUTTON_STATIC] = button_static_color;
+            instrument.panel.delete_button.change_state(instrument.panel.delete_button.state);
+        }
     };
 
     instrument.remove = function() {
