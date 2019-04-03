@@ -98,6 +98,7 @@ async function start() {
 		"./script/basic/general/ticker.js",
         "./script/basic/general/image.js",
         "./script/basic/general/fraction.js",
+        "./script/basic/general/file.js",
 	]);
     await do_promises_parallel(run_script, [
         "./script/basic/GUI/ctx.js",
@@ -110,6 +111,7 @@ async function start() {
     await do_promises_parallel(run_script, [
         "./script/editor/parent_panel.js",
         "./script/editor/menu/menubar.js",
+        "./script/editor/menu/save.js",
         "./script/editor/instrument/instrument.js",
         "./script/editor/scrollhandler.js",
         "./script/editor/editor.js",

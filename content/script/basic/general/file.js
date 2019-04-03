@@ -6,15 +6,10 @@ FileHandler.browse_folder = function(success_callback, failure_callback) {
 	FileHandler.selector.onchange = function(result) {
 		if (result && result.path[0] && result.path[0].files[0]) {
 			let file = result.path[0].files[0];
-			if (success_callback) {
-				success_callback(file);
-			}
+			if (success_callback) success_callback(file);
 		}
-		else {
-			if (failure_callback) {
-				failure_callback(result);
-			}
-		}
+		else if (failure_callback) failure_callback(result);
+
 	};
 	FileHandler.selector.click();
 };

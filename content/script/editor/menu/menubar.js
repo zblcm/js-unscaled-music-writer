@@ -3,6 +3,7 @@ var MenuHandler = {};
 MenuHandler.MENU_HEIGHT = 40;
 MenuHandler.MENU_BUTTON_SIZE = 30;
 MenuHandler.MENU_INTERVAL = (MenuHandler.MENU_HEIGHT - MenuHandler.MENU_BUTTON_SIZE) / 2;
+MenuHandler.DEFAULT_BAR_NUM = 4;
 
 MenuHandler.TOOL_DRAW = "DRAW";
 MenuHandler.TOOL_SELECT = "SELECT";
@@ -42,9 +43,11 @@ MenuHandler.create_panel = function() {
 
     button = MenuHandler.append_button();
     button.add_on_draw(MenuHandler.draw_file_open(button));
+    button.on_click = function() { FileHandler.browse_folder(function(file) { FileHandler.read_string_from_file(file, FileHandler.interpret); }); };
 
     button = MenuHandler.append_button();
     button.add_on_draw(MenuHandler.draw_file_save(button));
+    button.on_click = function() { FileHandler.save(SaveHandler.get_save_text(), "text/javascript", "save.js"); };
 
     MenuHandler.append_interval();
 
@@ -216,10 +219,8 @@ MenuHandler.append_adjuster = function() {
 MenuHandler.file_new = function() {
     while (Editor.bars.length) Editor.remove_bar();
 
-    Editor.create_bar();
-    Editor.create_bar();
-    Editor.create_bar();
-    Editor.create_bar();
+    for (let i = 0; i < MenuHandler.DEFAULT_BAR_NUM; i++)
+        Editor.create_bar();
 
     while (InstrumentHandler.instruments.length)
         InstrumentHandler.instruments[0].remove();
