@@ -38,12 +38,6 @@ Editor.init = function() {
     Editor.drawing_base = null;
     Editor.referenced_bar = null;
 
-    Editor.create_bar();
-    Editor.create_bar();
-    Editor.create_bar();
-    Editor.create_bar();
-    Editor.create_bar();
-
     Editor.imagine_size = new Point2(100, 100);
 
     Editor.play_x = 0;
@@ -343,8 +337,21 @@ Editor.create_bar = function() {
     Editor.bars.push(bar);
     bar.update_index();
     Editor.total_x = Editor.bars.length;
+    MenuHandler.adjuster_bar_num.cur_num = Editor.bars.length;
+    Editor.update_canvas_size();
 
     return bar;
+};
+Editor.remove_bar = function() {
+    let bar = Editor.bars.pop();
+    Editor.total_x = Editor.bars.length;
+    MenuHandler.adjuster_bar_num.cur_num = Editor.bars.length;
+
+    let notes = [];
+    for (let i in bar.notes) notes.push(bar.notes[i]);
+    for (let i in notes) notes[i].remove();
+
+    Editor.update_canvas_size();
 };
 
 Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
@@ -455,7 +462,7 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
     };
 
     note.remove = function() {
-        note.note.stop(null);
+        note.stop(null);
         if (note.bar) General.array_remove(note.bar.notes, note);
         General.array_remove(Editor.notes, note);
     };

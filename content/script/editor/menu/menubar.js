@@ -38,6 +38,7 @@ MenuHandler.create_panel = function() {
     // file buttons.
     button = MenuHandler.append_button();
     button.add_on_draw(MenuHandler.draw_file_new(button));
+    button.on_click = MenuHandler.file_new;
 
     button = MenuHandler.append_button();
     button.add_on_draw(MenuHandler.draw_file_open(button));
@@ -102,6 +103,15 @@ MenuHandler.create_panel = function() {
         return list[index];
     };
     adjuster.on_adjust();
+
+    adjuster = MenuHandler.append_adjuster();
+    adjuster.text_color = ColorHandler.COLOR_TIME;
+    adjuster.change_number = function(old, positive) {
+        if (positive) Editor.create_bar();
+        else if (old > 1) Editor.remove_bar();
+        return Editor.bars.length;
+    };
+    MenuHandler.adjuster_bar_num = adjuster;
 
     MenuHandler.append_interval();
 
@@ -171,7 +181,7 @@ MenuHandler.append_adjuster = function() {
             let new_num = adjuster.change_number(adjuster.cur_num, special < 0);
             let old_num = adjuster.cur_num;
             adjuster.cur_num = new_num;
-            if (old_num != new_num) adjuster.on_adjust();
+            if ((old_num != new_num) && (adjuster.on_adjust)) adjuster.on_adjust();
         }
     });
 
@@ -202,6 +212,20 @@ MenuHandler.append_adjuster = function() {
 *         menu function         *
 *                               *
 \*******************************/
+
+MenuHandler.file_new = function() {
+    while (Editor.bars.length) Editor.remove_bar();
+
+    Editor.create_bar();
+    Editor.create_bar();
+    Editor.create_bar();
+    Editor.create_bar();
+
+    while (InstrumentHandler.instruments.length)
+        InstrumentHandler.instruments[0].remove();
+    for (let key in InstrumentHandler.DEFAULT_INSTRUMENTS)
+        InstrumentHandler.new_instrument(key);
+};
 
 MenuHandler.select_tool = function(tool_key) {
     if (Editor.current_tool == tool_key)

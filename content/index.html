@@ -148,9 +148,7 @@ async function start() {
     InstrumentHandler.init();
     ParentPanel.init();
 
-    for (let key in InstrumentHandler.DEFAULT_INSTRUMENTS)
-    	InstrumentHandler.new_instrument(key);
-    // instrument.play(400, 0.25, 1, 0.01);
+    MenuHandler.file_new();
 
 	setInterval(update, 1000 / 60);
 }
