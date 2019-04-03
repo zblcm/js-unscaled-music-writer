@@ -8,16 +8,18 @@ Editor.X_UNIT_SIZE_MAX = 1280;
 Editor.Y_UNIT_SIZE_MIN = 40;
 Editor.Y_UNIT_SIZE_MAX = 1280;
 Editor.UNIT_SCALE_LENGTH = 200;
-Editor.NOTE_SELECT_RADIUS = 5;
+Editor.NOTE_SELECT_RADIUS = 6;
 
 Editor.ZERO_FREQUENCY = 20.0;
 Editor.MIN_VOLUME = 0.01;
 Editor.VOLUME_UNIT = 0.01;
 
-Editor.init = function() {
-    Editor.notes = [];
-    Editor.current_time = 0;
+Editor.DRAG_MOVE = "DRAG_MOVE";
+Editor.DRAG_ST = "DRAG_ST";
+Editor.DRAG_ED = "DRAG_ED";
 
+Editor.init = function() {
+    Editor.current_time = 0;
     Editor.current_x = 0;
     Editor.current_y = 0;
     Editor.x_unit_size = 320;
@@ -25,6 +27,7 @@ Editor.init = function() {
     Editor.total_x = 0;
     Editor.total_y = 10;
     Editor.bars = [];
+    Editor.notes = [];
 
     Editor.press_st_pos = null;
     Editor.press_ed_pos = null;
@@ -350,6 +353,7 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
 
     PanelHandler.panelize(note);
     ButtonHandler.buttonlize(note);
+    note.selected = false;
     note.sx = null;
     note.y = y;
     note.ex = ex;
@@ -388,7 +392,9 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
         let ex = Editor.unit_to_draw_x(note.ex.to_float());
         let y = Editor.unit_to_draw_y(General.log(2, note.y.to_float()));
 
-        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), note.instrument.color, 3);
+        let color = note.instrument.color;
+        if (note.selected) color = ColorHandler.COLOR_WHITE;
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), color, Editor.NOTE_SELECT_RADIUS * 2);
 
         if (note.st_adjuster) note.st_adjuster.draw_content(ctxw);
         if (note.ed_adjuster) note.ed_adjuster.draw_content(ctxw);
@@ -419,6 +425,7 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
     note.remove = function() {
         note.set_timeout_id(null);
         if (note.bar) General.array_remove(note.bar.notes, note);
+        General.array_remove(Editor.notes, note);
     };
 
     note.add_mouse_event(function(type, key, special) {
@@ -431,6 +438,7 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
     });
 
     note.set_sx(sx);
+    Editor.notes.push(note);
     Editor.note_adjuster(note, true);
     Editor.note_adjuster(note, false);
 
@@ -447,12 +455,12 @@ Editor.note_adjuster = function(note, is_start) {
 
     if (is_start) {
         adjuster.note.st_adjuster = adjuster;
-        adjuster.on_adjust = function() { note.st_volume = adjuster.cur_num; };
+        adjuster.on_adjust = function() { adjuster.note.st_volume = adjuster.cur_num; };
         adjuster.get_unit_pos = function () { return new Point2(adjuster.note.sx.to_float(), General.log(2, adjuster.note.y.to_float())); };
     }
     else {
         adjuster.note.ed_adjuster = adjuster;
-        adjuster.on_adjust = function() { note.st_volume = adjuster.cur_num; };
+        adjuster.on_adjust = function() { adjuster.note.ed_volume = adjuster.cur_num; };
         adjuster.get_unit_pos = function () { return new Point2(adjuster.note.ex.to_float(), General.log(2, adjuster.note.y.to_float())); };
     }
 
@@ -463,6 +471,7 @@ Editor.note_adjuster = function(note, is_start) {
 
     adjuster.cur_num = 0.50;
 
+    adjuster.is_start = function() { return adjuster.note.st_adjuster == adjuster; };
     adjuster.change_number = function(old, positive) {
         let num;
         if (positive) num = old + Editor.VOLUME_UNIT;
@@ -473,12 +482,33 @@ Editor.note_adjuster = function(note, is_start) {
     };
     adjuster.add_mouse_event(function(key, type, special) {
         let inside = adjuster.inside(EventHandler.mouse_position);
-        if (key == EventHandler.MOUSE_BUTTON_MIDDLE && type == EventHandler.EVENT_MOUSE_MOVE && inside) {
+        let result = false;
+
+        // adjust volume.
+        if ((type == EventHandler.EVENT_MOUSE_MOVE) && (key == EventHandler.MOUSE_BUTTON_MIDDLE) && inside) {
             let new_num = adjuster.change_number(adjuster.cur_num, special < 0);
             let old_num = adjuster.cur_num;
             adjuster.cur_num = new_num;
             if (old_num != new_num) adjuster.on_adjust();
         }
+
+        // start drag event.
+        if ((type == EventHandler.EVENT_MOUSE_DOWN) && (key == EventHandler.MOUSE_BUTTON_LEFT) && inside) {
+            if (adjuster.is_start()) {
+                Editor.drag_mode = Editor.DRAG_ST;
+                Editor.drag_sx = adjuster.note.sx;
+            }
+            else {
+                Editor.drag_mode = Editor.DRAG_ED;
+                Editor.drag_sx = adjuster.note.ex;
+            }
+            if (!adjuster.note.selected) {
+                Editor.clear_selected();
+                adjuster.note.selected = true;
+            }
+            result = true;
+        }
+        return result;
     });
 
     adjuster.inside = function(p) {
@@ -488,11 +518,21 @@ Editor.note_adjuster = function(note, is_start) {
     };
     adjuster.draw_content = function(ctxw) {
         let center = Editor.unit_to_draw(adjuster.get_unit_pos());
+        /*
         let fill_color = null;
         let stroke_color = null;
         if (adjuster.state == ButtonHandler.BUTTON_STATIC) fill_color = adjuster.note.instrument.color;
         else stroke_color = adjuster.note.instrument.color;
-        ctxw.draw_arc(center, adjuster.radius, 0, 2 * Math.PI * adjuster.cur_num, false, fill_color, stroke_color, 1.5, true);
+         ctxw.draw_arc(center, adjuster.radius, 0, 2 * Math.PI * adjuster.cur_num, false, fill_color, stroke_color, 1.5, true);
+        */
+        let fill_color = ColorHandler.COLOR_WHITE;
+        let stroke_color = adjuster.note.instrument.color;
+        if (adjuster.note.selected) {
+            fill_color = adjuster.note.instrument.color;
+            stroke_color = ColorHandler.COLOR_WHITE;
+        }
+        ctxw.draw_circle(center, adjuster.radius, stroke_color);
+        ctxw.draw_arc(center, adjuster.radius - 1, 0, 2 * Math.PI * adjuster.cur_num, false, fill_color, null, 1.5, true);
     };
 
     return adjuster;
@@ -508,14 +548,11 @@ Editor.find_nearest_x_line = function(abs_x) {
 
 Editor.content_mouse_event = function(type, key, special) {
     let inside = Editor.content_panel.inside(EventHandler.mouse_position);
+    let result = false;
     Editor.focused_bar = Editor.bars[Math.floor(Editor.abs_to_unit_x(EventHandler.mouse_position.x))] || null;
     if (Editor.focused_bar) Editor.focused_y_line = (Editor.referenced_bar || Editor.focused_bar).find_nearest_y_line(EventHandler.mouse_position.y);
     if (inside) Editor.focused_x_line = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
     else Editor.focused_x_line = null;
-
-    for (let i in Editor.bars)
-        for (let j in Editor.bars[i].notes)
-            Editor.bars[i].notes[j].mouse_event(type, key, special);
 
     // record mouse press.
     if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
@@ -527,12 +564,50 @@ Editor.content_mouse_event = function(type, key, special) {
             Editor.press_ed_pos = Editor.abs_to_unit(EventHandler.mouse_position);
     }
 
+    // keyboard events.
+    if ((type == EventHandler.EVENT_KEY_DOWN) && (key == EventHandler.KEY_DELETE)) {
+        let notes = [];
+        for (let i in Editor.notes) if (Editor.notes[i].selected) notes.push(Editor.notes[i]);
+        for (let i in notes) notes[i].remove();
+    }
+
+    // start note events.
+    for (let i in Editor.notes)
+        result = result || Editor.notes[i].mouse_event(type, key, special);
+
+    // process note events.
+    if (Editor.drag_mode) {
+        if (type == EventHandler.EVENT_MOUSE_MOVE) {
+            if ((Editor.drag_mode == Editor.DRAG_ST) || (Editor.drag_mode == Editor.DRAG_ED)) {
+                Editor.drag_ex = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
+            }
+        }
+        if ((key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_UP)) {
+            if ((Editor.drag_mode == Editor.DRAG_ST) || (Editor.drag_mode == Editor.DRAG_ED)) {
+                Editor.drag_ex = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
+                let delta_x = Editor.drag_ex.sub(Editor.drag_sx);
+                for (let i in Editor.notes) {
+                    let note = Editor.notes[i];
+                    if (note.selected) {
+                        if (Editor.drag_mode == Editor.DRAG_ST)
+                            note.set_sx(note.sx.add(delta_x));
+                        else
+                            note.ex = note.ex.add(delta_x);
+                        if (note.ex.leq(note.sx))
+                            note.remove();
+                    }
+                }
+            }
+            Editor.drag_mode = null;
+        }
+    }
+
     // handle draw
     if (Editor.current_tool == MenuHandler.TOOL_DRAW) {
         // change reference.
         if ((inside) && (key == EventHandler.MOUSE_BUTTON_RIGHT) && (type == EventHandler.EVENT_MOUSE_UP)) {
+            Editor.clear_selected();
             if (Editor.referenced_bar) {
-                Editor.referenced_bar.selected = false;
                 if (Editor.referenced_bar == Editor.focused_bar) Editor.referenced_bar = null;
                 else {
                     Editor.referenced_bar = Editor.focused_bar;
@@ -545,8 +620,8 @@ Editor.content_mouse_event = function(type, key, special) {
             }
         }
 
-        // handle select start.
-        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN) && (InstrumentHandler.active_instrument)) {
+        // handle draw start.
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN) && (InstrumentHandler.active_instrument) && (!result)) {
             Editor.drawing_sx = Editor.focused_x_line;
             Editor.drawing_ex = Editor.focused_x_line;
             Editor.drawing_y = Editor.focused_y_line;
@@ -576,7 +651,7 @@ Editor.content_mouse_event = function(type, key, special) {
             Editor.clear_selected();
 
         // handle select start.
-        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN) && (!result)) {
             // TODO:: judge select single note first.
             Editor.clear_selected();
             Editor.selecting = true;
@@ -599,7 +674,7 @@ Editor.content_mouse_event = function(type, key, special) {
         // change reference.
         if ((inside) && (key == EventHandler.MOUSE_BUTTON_RIGHT) && (type == EventHandler.EVENT_MOUSE_UP)) {
             if (Editor.referenced_bar) {
-                Editor.referenced_bar.selected = false;
+                Editor.clear_selected();
                 if (Editor.referenced_bar == Editor.focused_bar) Editor.referenced_bar = null;
                 else {
                     Editor.referenced_bar = Editor.focused_bar;
@@ -613,7 +688,7 @@ Editor.content_mouse_event = function(type, key, special) {
         }
 
         // handle select start.
-        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN)) {
+        if ((inside) && (key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_DOWN) && (!result)) {
             Editor.drawing_bar = Editor.focused_bar;
             Editor.drawing_base = Editor.focused_y_line;
         }
@@ -668,13 +743,12 @@ Editor.content_draw = function(ctxw) {
         sx = Editor.unit_to_draw_x(Editor.drawing_sx.to_float());
         ex = Editor.unit_to_draw_x(Editor.drawing_ex.to_float());
         y = Editor.unit_to_draw_y(General.log(2, Editor.drawing_y.to_float()));
-        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), InstrumentHandler.active_instrument.color, 3);
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), InstrumentHandler.active_instrument.color, Editor.NOTE_SELECT_RADIUS * 2);
     }
 
     // draw notes.
-    for (let i in Editor.bars)
-        for (let j in Editor.bars[i].notes)
-            Editor.bars[i].notes[j].draw_content(ctxw);
+    for (let i in Editor.notes)
+        Editor.notes[i].draw_content(ctxw);
 
     // draw selection.
     if (Editor.selecting) {
@@ -701,11 +775,18 @@ Editor.update_selected = function() {
     // update bar.
     for (let i = 0; i < Editor.total_x; i ++)
         Editor.bars[i].selected = (i >= x1 - 1) && (i <= x2);
+
+    for (let i in Editor.notes) {
+        let note = Editor.notes[i];
+        let y = General.log(2, note.y.to_float());
+        note.selected = (note.sx.to_float() <= x2) && (note.ex.to_float() >= x1) && (y >= y1) && (y <= y2);
+    }
 };
 Editor.clear_selected = function() {
     for (let i in Editor.bars) {
         let bar = Editor.bars[i];
         bar.selected = false;
-        // TODO:: unselect notes.
     }
+    for (let i in Editor.notes)
+        Editor.notes[i].selected = false;
 };
