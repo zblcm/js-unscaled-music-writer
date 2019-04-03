@@ -392,9 +392,7 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
         let ex = Editor.unit_to_draw_x(note.ex.to_float());
         let y = Editor.unit_to_draw_y(General.log(2, note.y.to_float()));
 
-        let color = note.instrument.color;
-        if (note.selected) color = ColorHandler.COLOR_WHITE;
-        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), color, Editor.NOTE_SELECT_RADIUS * 2);
+        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), note.instrument.color, Editor.NOTE_SELECT_RADIUS * 2);
 
         if (note.st_adjuster) note.st_adjuster.draw_content(ctxw);
         if (note.ed_adjuster) note.ed_adjuster.draw_content(ctxw);
@@ -435,6 +433,22 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
         if (note.ed_adjuster) result = note.ed_adjuster.mouse_event(type, key, special);
         if (result) return result;
 
+        let inside = note.inside(EventHandler.mouse_position);
+
+        // start drag event.
+        if ((type == EventHandler.EVENT_MOUSE_DOWN) && (key == EventHandler.MOUSE_BUTTON_LEFT) && inside) {
+            Editor.drag_mode = Editor.DRAG_MOVE;
+            Editor.drag_sx = Editor.focused_x_line;
+            Editor.drag_ex = Editor.drag_sx;
+            Editor.drag_sy = note.y;
+            Editor.drag_ey = Editor.drag_sy;
+            if (!note.selected) {
+                Editor.clear_selected();
+                note.selected = true;
+            }
+            result = true;
+        }
+        return result;
     });
 
     note.set_sx(sx);
@@ -502,6 +516,7 @@ Editor.note_adjuster = function(note, is_start) {
                 Editor.drag_mode = Editor.DRAG_ED;
                 Editor.drag_sx = adjuster.note.ex;
             }
+            Editor.drag_ex = Editor.drag_sx;
             if (!adjuster.note.selected) {
                 Editor.clear_selected();
                 adjuster.note.selected = true;
@@ -519,12 +534,6 @@ Editor.note_adjuster = function(note, is_start) {
     adjuster.draw_content = function(ctxw) {
         let center = Editor.unit_to_draw(adjuster.get_unit_pos());
         /*
-        let fill_color = null;
-        let stroke_color = null;
-        if (adjuster.state == ButtonHandler.BUTTON_STATIC) fill_color = adjuster.note.instrument.color;
-        else stroke_color = adjuster.note.instrument.color;
-         ctxw.draw_arc(center, adjuster.radius, 0, 2 * Math.PI * adjuster.cur_num, false, fill_color, stroke_color, 1.5, true);
-        */
         let fill_color = ColorHandler.COLOR_WHITE;
         let stroke_color = adjuster.note.instrument.color;
         if (adjuster.note.selected) {
@@ -533,6 +542,9 @@ Editor.note_adjuster = function(note, is_start) {
         }
         ctxw.draw_circle(center, adjuster.radius, stroke_color);
         ctxw.draw_arc(center, adjuster.radius - 1, 0, 2 * Math.PI * adjuster.cur_num, false, fill_color, null, 1.5, true);
+         */
+        ctxw.draw_circle(center, adjuster.radius, adjuster.note.instrument.color);
+        ctxw.draw_arc(center, adjuster.radius - 1, 0, 2 * Math.PI * adjuster.cur_num, false, ColorHandler.COLOR_WHITE, null, false, true);
     };
 
     return adjuster;
@@ -578,27 +590,38 @@ Editor.content_mouse_event = function(type, key, special) {
     // process note events.
     if (Editor.drag_mode) {
         if (type == EventHandler.EVENT_MOUSE_MOVE) {
-            if ((Editor.drag_mode == Editor.DRAG_ST) || (Editor.drag_mode == Editor.DRAG_ED)) {
-                Editor.drag_ex = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
-            }
+            Editor.drag_ex = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
+            if ((Editor.drag_mode == Editor.DRAG_MOVE) && Editor.focused_bar)
+                Editor.drag_ey = Editor.focused_bar.find_nearest_y_line(EventHandler.mouse_position.y);
         }
         if ((key == EventHandler.MOUSE_BUTTON_LEFT) && (type == EventHandler.EVENT_MOUSE_UP)) {
-            if ((Editor.drag_mode == Editor.DRAG_ST) || (Editor.drag_mode == Editor.DRAG_ED)) {
+            if ((!Editor.drag_mode == Editor.DRAG_MOVE) || (Editor.focused_bar)) {
                 Editor.drag_ex = Editor.find_nearest_x_line(EventHandler.mouse_position.x);
                 let delta_x = Editor.drag_ex.sub(Editor.drag_sx);
-                for (let i in Editor.notes) {
-                    let note = Editor.notes[i];
+                let notes = [];
+                for (let i in Editor.notes) notes.push(Editor.notes[i]);
+                for (let i in notes) {
+                    let note = notes[i];
                     if (note.selected) {
-                        if (Editor.drag_mode == Editor.DRAG_ST)
-                            note.set_sx(note.sx.add(delta_x));
-                        else
-                            note.ex = note.ex.add(delta_x);
-                        if (note.ex.leq(note.sx))
+                        if ((Editor.drag_mode == Editor.DRAG_ST) || (Editor.drag_mode == Editor.DRAG_MOVE)) note.set_sx(note.sx.add(delta_x));
+                        if ((Editor.drag_mode == Editor.DRAG_ED) || (Editor.drag_mode == Editor.DRAG_MOVE)) note.ex = note.ex.add(delta_x);
+                        if ((Editor.drag_mode == Editor.DRAG_MOVE) && (Editor.focused_bar)) {
+                            Editor.drag_ey = Editor.focused_bar.find_nearest_y_line(EventHandler.mouse_position.y);
+                            let delta_y = Editor.drag_ey.div(Editor.drag_sy);
+                            note.y = note.y.mul(delta_y);
+                        }
+                        if (note.ex.leq(note.sx)) note.remove();
+                        let y = General.log(2, note.y.to_float());
+                        if ((note.sx.to_float() < 0) || (note.ex.to_float() > Editor.total_x) || (y < 0) || (y > Editor.total_y))
                             note.remove();
                     }
                 }
             }
             Editor.drag_mode = null;
+            Editor.drag_sx = null;
+            Editor.drag_ex = null;
+            Editor.drag_sy = null;
+            Editor.drag_ey = null;
         }
     }
 
@@ -733,24 +756,42 @@ Editor.content_draw = function(ctxw) {
     // draw x line reference
     if (Editor.focused_x_line) {
         sy = 0;
-        ey = Editor.unit_to_draw_y(Editor.abs_to_unit_y(Editor.content_panel.position.y + Editor.content_panel.size.y))
+        ey = Editor.unit_to_draw_y(Editor.abs_to_unit_y(Editor.content_panel.position.y + Editor.content_panel.size.y));
         x = Editor.unit_to_draw_x(Editor.focused_x_line.to_float());
         ctxw.draw_line(new Point2(x, sy), new Point2(x, ey), ColorHandler.COLOR_EDIT_DARK, 1);
     }
 
     //  draw drawing note
-    if (Editor.drawing_sx && Editor.drawing_ex && Editor.drawing_y) {
-        sx = Editor.unit_to_draw_x(Editor.drawing_sx.to_float());
-        ex = Editor.unit_to_draw_x(Editor.drawing_ex.to_float());
-        y = Editor.unit_to_draw_y(General.log(2, Editor.drawing_y.to_float()));
-        ctxw.draw_line(new Point2(sx, y), new Point2(ex, y), InstrumentHandler.active_instrument.color, Editor.NOTE_SELECT_RADIUS * 2);
-    }
+    if (Editor.drawing_sx && Editor.drawing_ex && Editor.drawing_y)
+        Editor.draw_note_stroke(ctxw, Editor.drawing_sx.to_float(), Editor.drawing_ex.to_float(), General.log(2, Editor.drawing_y.to_float()), 1, InstrumentHandler.active_instrument.color);
 
     // draw notes.
     for (let i in Editor.notes)
         Editor.notes[i].draw_content(ctxw);
 
-    // draw selection.
+    // draw note selection.
+    for (let i in Editor.notes) {
+        let note = Editor.notes[i];
+        if (note.selected) {
+            let draw = true;
+            let sx = note.sx.to_float();
+            let ex = note.ex.to_float();
+            let y = General.log(2, note.y.to_float());
+            if (Editor.drag_mode) {
+                let delta_x = Editor.drag_ex.to_float() - Editor.drag_sx.to_float();
+                if ((Editor.drag_mode == Editor.DRAG_ST) || (Editor.drag_mode == Editor.DRAG_MOVE)) sx = note.sx.to_float() + delta_x;
+                if ((Editor.drag_mode == Editor.DRAG_ED) || (Editor.drag_mode == Editor.DRAG_MOVE)) ex = note.ex.to_float() + delta_x;
+                if (Editor.drag_mode == Editor.DRAG_MOVE) y = General.log(2, note.y.mul(Editor.drag_ey.div(Editor.drag_sy)).to_float());
+                draw = ex > sx;
+            }
+            let unit_y = Editor.unit_to_draw_y(y);
+            draw = draw && (Editor.unit_to_draw_x(ex) >= 0) && (Editor.unit_to_draw_x(sx) <= Editor.content_panel.size.x) && (unit_y >= 0) && (unit_y <= Editor.content_panel.size.y);
+            if (draw)
+                Editor.draw_note_stroke(ctxw, sx, ex, y, 1.5, ColorHandler.COLOR_WHITE);
+        }
+    }
+
+    // draw selection rect.
     if (Editor.selecting) {
         let t;
         let x1 = Editor.unit_to_draw_x(Editor.press_st_pos.x);
@@ -761,6 +802,22 @@ Editor.content_draw = function(ctxw) {
         if (y1 > y2) { t = y1; y1 = y2; y2 = t; }
         ctxw.draw_rect(new Point2(x1, y1), new Point2(x2 - x1, y2 - y1), null, ColorHandler.COLOR_THEME_7, 1);
     }
+};
+
+Editor.draw_note_stroke = function(ctxw, unit_sx, unit_ex, unit_y, width, color) {
+    let sx = Editor.unit_to_draw_x(unit_sx);
+    let ex = Editor.unit_to_draw_x(unit_ex);
+    let y = Editor.unit_to_draw_y(unit_y);
+    let ctx = ctxw.ctx;
+
+    ctx.beginPath();
+    ctx.arc(sx, y, Editor.NOTE_SELECT_RADIUS - (width / 2), Math.PI * 0.5, Math.PI * 1.5, false);
+    ctx.arc(ex, y, Editor.NOTE_SELECT_RADIUS - (width / 2), Math.PI * 1.5, Math.PI * 0.5, false);
+    ctx.closePath();
+
+    ctx.strokeStyle = color.to_style();
+    ctx.lineWidth = width;
+    ctx.stroke();
 };
 
 Editor.update_selected = function() {
