@@ -277,30 +277,17 @@ InstrumentHandler.new_instrument = function(source) {
     instrument.create_play_function = function() {
         // Sine Wave.
         if (instrument.is_default()) {
-            instrument.play = function(frequency, amplitude, duration, fade) {
+            instrument.play = function() {
                 let g = AudioHandler.context.createGain();
                 g.connect(AudioHandler.context.destination);
-                g.gain.value = amplitude;
-                if (fade) g.gain.exponentialRampToValueAtTime(fade, AudioHandler.context.currentTime + duration);
 
                 let o1 = AudioHandler.context.createOscillator();
                 o1.type = InstrumentHandler.default_instrument_oscillator_types[instrument.source];
-                o1.frequency.value = frequency;
                 o1.connect(g);
-                o1.start(0);
-
-                let k = function (g, duration) {
-                    return function() {
-                        setTimeout(function(){
-                            g.disconnect();
-                        }, duration * 1000);
-                    }
-                }(g, duration)();
 
                 return {
-                    oscillator: o1,
-                    gain:       g,
-                    time_event: k
+                    o_node: o1,
+                    g_node: g
                 };
             }
         }

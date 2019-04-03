@@ -10,14 +10,12 @@ AudioHandler.set_playing = function(playing) {
     if (playing) {
         Editor.play_start_x = Editor.play_x;
         AudioHandler.play_start_time = Ticker.time();
-        for (let i in Editor.bars)
-            for (let j in Editor.bars[i].notes)
-                Editor.bars[i].notes[j].play_in_future();
+        for (let i in Editor.notes)
+            Editor.notes[i].play_in_future();
     }
     else {
-        for (let i in Editor.bars)
-            for (let j in Editor.bars[i].notes)
-                Editor.bars[i].notes[j].set_timeout_id(null);
+        for (let i in Editor.notes)
+            Editor.notes[i].stop(null);
     }
 };
 

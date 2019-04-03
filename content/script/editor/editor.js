@@ -400,14 +400,18 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
 
     note.play_in_future = function() {
         let delta_x = note.sx.to_float() - Editor.play_x;
-        if (delta_x < 0) return;
+        if (delta_x < 0) return;    // TODO:: duration override
         if (delta_x == 0) note.play();
-        if (delta_x > 0)  note.set_timeout_id(setTimeout(function() { note.play(); }, delta_x * Editor.unit_time * 1000));
+        if (delta_x > 0)  note.set_timeout_id_start(setTimeout(function() { note.play(); }, delta_x * Editor.unit_time * 1000));
     };
 
-    note.set_timeout_id = function(timeout_id) {
-        if (note.timeout_id) clearTimeout(note.timeout_id);
-        note.timeout_id = timeout_id;
+    note.set_timeout_id_start = function(timeout_id_start) {
+        if (note.timeout_id_start) clearTimeout(note.timeout_id_start);
+        note.timeout_id_start = timeout_id_start;
+    };
+    note.set_timeout_id_end = function(timeout_id_end) {
+        if (note.timeout_id_end) clearTimeout(note.timeout_id_end);
+        note.timeout_id_end = timeout_id_end;
     };
 
     note.play = function(duration_override) {
@@ -417,11 +421,41 @@ Editor.create_note = function(instrument, sx, ex, y, st_volume, ed_volume) {
         else duration = (note.ex.to_float() - note.sx.to_float()) * Editor.unit_time;
         let st_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.st_volume);
         let ed_volume = Math.pow(Editor.MIN_VOLUME, 1 - note.ed_volume);
-        note.instrument.play(frequency, st_volume, duration, ed_volume);
+        let {
+            o_node,
+            g_node
+        } = note.instrument.play();
+
+        g_node.gain.value = st_volume;
+        g_node.gain.exponentialRampToValueAtTime(ed_volume, AudioHandler.context.currentTime + duration);
+        o_node.frequency.value = frequency;
+        o_node.start(0);
+
+        let timeout_id_end = function(duration) {
+            return function() {
+                return setTimeout(function(){
+                    note.g_node.disconnect();
+                    note.g_node = null;
+                    note.timeout_id_end = null;
+                }, duration * 1000);
+            }
+        }(duration)();
+
+        note.g_node = g_node;
+        note.set_timeout_id_end(timeout_id_end);
+    };
+
+    note.stop = function() {
+        if (note.g_node) {
+            note.g_node.disconnect();
+            note.g_node = null;
+        }
+        note.set_timeout_id_start(null);
+        note.set_timeout_id_end(null);
     };
 
     note.remove = function() {
-        note.set_timeout_id(null);
+        note.note.stop(null);
         if (note.bar) General.array_remove(note.bar.notes, note);
         General.array_remove(Editor.notes, note);
     };
